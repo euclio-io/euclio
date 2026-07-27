@@ -12,12 +12,14 @@
 //    is the retainer proof.
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Prisma 7: no `url` here — the CLI reads it from prisma.config.ts (DIRECT_URL),
+  // and the running app supplies it via a driver adapter (lib/prisma.ts, DATABASE_URL).
 }
 
 // ---------------- enums ----------------
