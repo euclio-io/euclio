@@ -2,7 +2,8 @@
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`
 > (governing rules) and `docs/plans/m0-scaffold.md` (M0 build steps).
-> Last reconciled: 2026-07-27 (Prisma 7 + Neon wired; init migration applied).
+> Last reconciled: 2026-07-27 (add-client-workflow slice implemented + build-verified on a
+> fresh machine; not yet runtime-tested against a live Neon/Clerk instance on this machine).
 
 ## Milestone: M0 — deployable skeleton (auth + DB + Sentry + one page + health)
 
@@ -50,18 +51,88 @@
   (idempotent tenant path across dev/prod).
 
 ## 🎉 M0 skeleton is DONE and deployed. All of §1–§10 committed to `master` and verified in production.
-Next milestone would be M1 (ping ingest + status) per the MVP loop in CLAUDE.md — NOT started; awaiting go-ahead.
 
-## Environment (this machine, 2026-07-27)
+## Milestone: "Add client + workflow" — IMPLEMENTED, build-verified, NOT yet runtime-tested
+Per CLAUDE.md's MVP loop (`add client + workflow -> confirm test ping -> ping ingest + status -> ...`),
+this is the slice right after M0 and right before ping ingest — deliberately scoped to
+just the CRUD (confirmed with the user): no ping ingest endpoint, no "confirm test ping"
+UI, no watcher. Full design plan: `docs/plans/` history / plan-mode session (see git log
+message on the commit landing this slice for the rationale summary).
+
+- `lib/token.ts` — `generateWorkflowToken()`, `crypto.randomBytes(24).toString("base64url")`.
+  No new dependency; 192 bits of entropy; `Workflow.token @unique` is the collision backstop.
+- `app/dashboard/actions.ts` (NEW — first Server Actions / first mutation path in the app;
+  no API-route or Server Action precedent existed before this) — `createClient` and
+  `createWorkflow`, both FormData-based for `useActionState`. Both independently re-check
+  `auth()` (never assume reaching the action means authenticated) and resolve `account` via
+  the existing `getOrCreateAccountForCurrentUser()` — no new tenant-resolution logic.
+  `createWorkflow`'s ownership check is baked into the query itself
+  (`prisma.client.findFirst({ where: { id: clientId, accountId: account.id, archivedAt: null } })`),
+  not a follow-up JS equality check — this is the cross-tenant-leak gate CLAUDE.md calls
+  highest-severity. `expectedIntervalMinutes`/`graceMinutes` are bounded to Postgres INT4
+  max (2147483647) so an absurd input fails validation with a friendly message instead of
+  an uncaught DB error. `status` is never set explicitly on create — schema
+  `@default(pending)` is the only writer, preserving "never write healthy for an unobserved
+  span." Both actions log via the existing `lib/logger.ts` convention
+  (`client.created`/`workflow.created`, IDs only, no names, no tokens — tokens are bearer
+  credentials, same never-log bucket as PII) and `revalidatePath("/dashboard")` on success.
+- `app/dashboard/add-client-form.tsx`, `app/dashboard/add-workflow-form.tsx` (NEW — first
+  client components in the app) — `useActionState` for inline `role="alert"` error text,
+  no new dependency, no toast/state library. Manual validation only (no zod — not a direct
+  dependency, adding one for 2-3 field forms was judged premature).
+- `app/dashboard/page.tsx` (EDITED) — replaced the `workflowCount` bug (was counting
+  `Client` rows while named as if counting Workflows) with a real accountId-scoped
+  `prisma.client.findMany({ ..., include: { workflows: { where: { archivedAt: null } } } })`,
+  renders the client list with nested workflows (name, status badge, interval, token shown
+  inline with a "check-in URL isn't live yet" caption — deliberately no constructed
+  `/api/ping/{token}` URL and no copy button, so the UI doesn't promise a capability this
+  slice doesn't build) plus both forms.
+- No schema changes — `Client`/`Workflow` models already existed from the M0 data model.
+
+### Build verification performed on THIS machine (fresh clone, see Environment below)
+- Installed nvm + Node 22.23.1 (this machine had neither `nvm` nor a new-enough system
+  Node before this session).
+- `npm install` — clean, matches `package-lock.json`, no errors (`npm audit` reports some
+  vulnerabilities inherited from existing M0 dependencies, not investigated — out of scope
+  for this slice, unrelated to the new files).
+- Created a **local-only placeholder `.env.local`** (fake but syntactically valid Neon/
+  Clerk/Sentry values, gitignored, never committed) specifically so `npm run build` could
+  run for real without touching any live service. `npm run build` (`prisma generate && next
+  build`) — clean; `/dashboard` correctly compiles as a dynamic route (`ƒ`), confirming no
+  DB query fires at build time even without a real `DATABASE_URL`. `npm run lint` — clean.
+- **NOT done**: real runtime testing (sign in, actually create a Client/Workflow, verify
+  rows in Neon, verify the cross-tenant "Client not found" rejection, verify
+  `logger.info` reaches Sentry). This needs real Neon/Clerk/Sentry credentials, which this
+  machine doesn't have — the placeholder `.env.local` must be replaced with real values
+  (or swapped in from wherever the other machine's values live) before any of that can run.
+  Flagging this explicitly so it isn't mistaken for "fully verified."
+
+## Environment — TWO machines now, tracked separately (this repeats going forward)
+
+### Laptop (previous session, as of 2026-07-27 M0 work)
 - **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` + `@sentry/nextjs` present.
 - **Node: OK when activated.** Node `v22.21.1` via `nvm use 22` (`.nvmrc` pins it). `nvm default` still points to Node 20 and new shells start on Node 18 — run `nvm use` in the repo first. Every command that touches node/npm/prisma must source nvm + `nvm use 22`.
 - **Minor:** `npm run build` warns "Detected additional lockfiles" (a `package-lock.json` higher up the tree). Benign; can pin Turbopack root later via `next.config.ts`.
-- **`.env.local` exists (gitignored):**
+- **`.env.local` exists (gitignored), REAL values:**
   - Neon: `DATABASE_URL` (pooled) + `DIRECT_URL` (unpooled) — **set, working** (migration applied through them).
   - Clerk: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — **set, working** (dev instance; Organizations OFF).
   - Sentry: `NEXT_PUBLIC_SENTRY_DSN` — **set, working** (events verified reaching the project).
     `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT` — **still blank** (build-time source-map upload only; needed for readable prod stack traces at §9/§10).
-  - Prod (Railway) env vars: **not set** — deferred to §10.
+  - Prod (Railway) env vars: **set** (§10 done).
+
+### This machine (second machine, first session on it: 2026-07-27)
+- Fresh clone — had neither `nvm` nor a new-enough system Node (`/usr/bin/node` was 18.19.1).
+  Installed `nvm` + Node 22.23.1 this session. **Same caveat as the laptop applies going
+  forward: new shells start on system Node 18, always `nvm use` (or `nvm use 22`) first.**
+- `npm install` run this session — `node_modules` now present, matches lockfile.
+- **`.env.local` exists (gitignored), PLACEHOLDER values only** — fake Neon/Clerk/Sentry
+  strings, created solely so `npm run build` could be verified without a live DB. **Must be
+  replaced with real values before `npm run dev` or any runtime testing on this machine.**
+- Onboarding this machine properly (pulling real secrets instead of hand-copying) was
+  discussed and deliberately deferred: since dev and prod currently share the same Neon DB,
+  `railway variables`/`railway run` could pull the real values directly — planned as a
+  follow-up bootstrap script, not done yet. This exact two-machine gap is expected to recur,
+  so it's worth doing before a third machine/session needs onboarding.
 
 ## Anchor-file reconciliation
 - `CLAUDE.md` → `## Topology` section **present** (modular-monolith, web + watcher split). ✓
@@ -98,3 +169,15 @@ Next milestone would be M1 (ping ingest + status) per the MVP loop in CLAUDE.md 
       pg v9 (currently treated as the stricter `verify-full`). Our Neon URLs use `sslmode=require`.
       No action now (current behavior is safe); revisit if we bump pg to v9.
 - [ ] Keep build-out inside the "Do NOT build" skip list (no ingest, watcher, email, client-facing).
+- [ ] **Runtime-verify the add-client-workflow slice** on whichever machine has real
+      credentials first: sign in, create a Client, create a Workflow (including a bad
+      input to see the inline error), confirm rows in Neon via `prisma studio`, confirm the
+      cross-tenant `findFirst` rejection actually returns "Client not found." with no write,
+      confirm `client.created`/`workflow.created` reach Sentry with no name/token in the
+      attributes. Build+lint are clean; this is the remaining, more important check.
+- [ ] **Multi-machine onboarding bootstrap** (deferred, see Environment above): a script that
+      does `nvm install 22 && nvm use 22 && npm install` plus pulls real env vars via
+      `railway variables`/`railway run` instead of hand-copying `.env.local`. Worth doing
+      before a third machine needs onboarding — this session hit the exact gap it would fix.
+- [ ] Next slice after this one (once runtime-verified): ping ingest (`POST /api/ping/[token]`)
+      + "confirm test ping" UI, per the MVP loop — not started.
