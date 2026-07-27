@@ -2,63 +2,70 @@
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`
 > (governing rules) and `docs/plans/m0-scaffold.md` (M0 build steps).
-> Last reconciled: 2026-07-27 (Next.js scaffold merged; uncommitted).
+> Last reconciled: 2026-07-27 (Prisma 7 + Neon wired; init migration applied).
 
 ## Milestone: M0 — deployable skeleton (auth + DB + Sentry + one page + health)
 
-### Done (committed on `master`, tree clean)
-- `e85af73` — initial commit: `CLAUDE.md` (project context, governing rules) + `schema.prisma` (full M0 data model).
-- `87b6dbd` — `Account.clerkOrgId` made nullable (`String? @unique`) + added `docs/plans/m0-scaffold.md`.
-- That is the **entire** repo. M0 is at the *pre-scaffold* state: schema + decisions are locked, **no application code exists yet.**
+### Done (committed on `master`)
+- `e85af73` — initial commit: `CLAUDE.md` + `schema.prisma` (full M0 data model).
+- `87b6dbd` — `Account.clerkOrgId` made nullable (`String? @unique`) + `docs/plans/m0-scaffold.md`.
+- `fefde27` — scaffold slice (§1–§3): Node 22 + `.nvmrc`, `create-next-app` (Next `16.2.12`,
+  React `19.2.4`, TS + Tailwind + ESLint, App Router, no src dir, `@/*`), `git mv` schema to
+  `prisma/`, Prisma 7 datasource/generator edits. Build green. Pushed to `origin/master`.
 
-### Just done — scaffold slice (plan §1 → §2 + §3), UNCOMMITTED
-- Node 22 activated (`v22.21.1`); `.nvmrc` = `22` added.
-- `create-next-app@latest` (Next `16.2.12`, React `19.2.4`, TS + Tailwind + ESLint,
-  App Router, no src dir, `@/*` alias) scaffolded into `/tmp/euclio-scaffold` and
-  merged into repo root. Scaffold's generic `CLAUDE.md`/`AGENTS.md` dropped so ours governs.
-- `git mv schema.prisma prisma/schema.prisma`; applied Prisma 7 §3 mechanical edits
-  (`provider = "prisma-client"`, `output = "../generated/prisma"`, removed `url` from datasource).
-- `npm install` clean; **`npm run build` succeeds** on Node 22.
-- All scaffold files are **untracked / uncommitted** — awaiting review before commit.
+### Just done — Prisma 7 + Neon wiring (plan §4), UNCOMMITTED
+- Installed `@prisma/client` `@prisma/adapter-pg` `pg` `dotenv` (+ `-D prisma @types/pg`), all `7.9.1`/latest.
+- `prisma.config.ts` — CLI-only, datasource `url = env("DIRECT_URL")` (unpooled).
+- `lib/prisma.ts` — app client via `PrismaPg` over `DATABASE_URL` (pooled), pool `max: 5`, hot-reload singleton.
+- `.env.example` (names only) + `.gitignore`: added `!.env.example` and `/generated`.
+- `.env.local` filled by user (gitignored) with pooled `DATABASE_URL` + unpooled `DIRECT_URL`.
+- **Migration `20260727163422_init` created + applied to Neon.** `migrate status` = up to date.
+  `clerkOrgId` landed as `TEXT` (nullable) + unique index — matches the decision.
+- `prisma generate` → client in `generated/` (gitignored). `npm run build` + `tsc --noEmit` both clean.
+- **Two plan-gap fixes made** (see Open threads): `max` placement in `PrismaPg`, and `.env.local` loading.
 
 ### Not started (rest of `docs/plans/m0-scaffold.md`)
-No Prisma client wiring (`prisma.config.ts`, `lib/prisma.ts`, packages `@prisma/client`
-`@prisma/adapter-pg` `pg` `dotenv`), no Clerk (§5), no Account/User auto-create (§6),
-no Sentry (§7), no `/api/health` (§8), no `railway.json` (§9), no `.env.local`/`.env.example` (§10).
-**No Prisma migration has ever been created or applied.**
+Clerk (§5), Account/User auto-create (§6), Sentry (§7), `/api/health` (§8),
+`railway.json` (§9), Railway deploy + prod env (§10). None require new DB migrations.
 
-### Single next slice (per plan §4)
-Prisma 7 + Neon wiring — install packages, add `prisma.config.ts` + `lib/prisma.ts`.
-BLOCKED until `.env.local` exists (needs `DATABASE_URL` pooled + `DIRECT_URL` unpooled from Neon).
+### Single next slice (per plan §5)
+Clerk auth — `npm i @clerk/nextjs`, `proxy.ts` with `clerkMiddleware()`, wrap `app/layout.tsx`
+in `<ClerkProvider>`. Needs Clerk keys in `.env.local` (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+`CLERK_SECRET_KEY`) — credential-gated, same as Neon was.
 
 ## Environment (this machine, 2026-07-27)
-- **Dependencies: installed** — scaffold `package.json` + `node_modules` present after `npm install` (Prisma/Clerk/Sentry packages NOT yet added).
-- **Node: OK when activated.** Node `v22.21.1` via `nvm use 22` (`.nvmrc` now pins it). Note: `nvm default` still points to Node 20 and each new shell starts on Node 18 — run `nvm use` in the repo first.
-- **Minor:** `npm run build` warns "Detected additional lockfiles" (a `package-lock.json` exists higher up the tree). Benign; can pin Turbopack root later via `next.config.ts` if it becomes noisy.
-- **`.env` / `.env.local`: does NOT exist.** Therefore every required var is missing:
-  - Neon: `DATABASE_URL` (pooled), `DIRECT_URL` (unpooled) — **missing**
-  - Clerk: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — **missing**
-  - Sentry: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — **missing**
-  - (No values printed or inspected — file simply is not present.)
+- **Dependencies: installed** — Next + Prisma 7 stack present. Clerk/Sentry packages NOT yet added.
+- **Node: OK when activated.** Node `v22.21.1` via `nvm use 22` (`.nvmrc` pins it). `nvm default` still points to Node 20 and new shells start on Node 18 — run `nvm use` in the repo first. Every command that touches node/npm/prisma must source nvm + `nvm use 22`.
+- **Minor:** `npm run build` warns "Detected additional lockfiles" (a `package-lock.json` higher up the tree). Benign; can pin Turbopack root later via `next.config.ts`.
+- **`.env.local` exists (gitignored):**
+  - Neon: `DATABASE_URL` (pooled) + `DIRECT_URL` (unpooled) — **set, working** (migration applied through them).
+  - Clerk: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — **still missing** (needed for §5).
+  - Sentry: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — **still missing** (§7).
+  - Prod (Railway) env vars: **not set** — deferred to §10.
 
 ## Anchor-file reconciliation
 - `CLAUDE.md` → `## Topology` section **present** (modular-monolith, web + watcher split). ✓
-- `schema.prisma` → `Account.clerkOrgId String? @unique` (nullable) **confirmed** at line 54. ✓
-- Known-pending (planned in §3, not stale surprises): schema still has
-  `provider = "prisma-client-js"` and `url = env("DATABASE_URL")` in the datasource,
-  and lives at repo root rather than `prisma/`. Prisma 7 needs `provider = "prisma-client"`
-  + `output` + no `url` in datasource — these are mechanical scaffold-time edits, not drift.
+- `prisma/schema.prisma` → `Account.clerkOrgId String? @unique` (nullable) confirmed; Prisma 7
+  `provider = "prisma-client"` + `output` + no `url` in datasource all applied (committed in `fefde27`). ✓
 
-## clerkOrgId migration check
-- `prisma migrate status` **could not run**: Prisma CLI is not installed, there is no
-  `prisma.config.ts`, no `DATABASE_URL`/`DIRECT_URL`, and no `prisma/migrations/` dir.
-- **No migration has ever been created or applied to Neon.** There is therefore no
-  applied `NOT NULL` `clerkOrgId` to correct. The schema is already nullable; the first
-  migration (`init`) will encode it correctly. **No corrective migration needed** — the
-  concern is moot until an `init` migration exists to compare against.
+## clerkOrgId migration check — RESOLVED
+- `prisma migrate status` = **up to date** against Neon.
+- Applied migration `20260727163422_init` defines `"clerkOrgId" TEXT,` (nullable) + a unique index —
+  matches the schema and the decision. **No corrective migration needed.**
+
+## Plan gaps found & fixed while wiring §4 (worth folding back into m0-scaffold.md later)
+1. `PrismaPg` `max: 5` — plan put it in the constructor's first object as `{ connectionString, max }`,
+   which is actually correct (first arg = pg PoolConfig). An earlier draft split it into the 2nd arg
+   where it's ignored; verified against installed 7.9.1 `.d.ts` and fixed. Pool cap now applies.
+2. `prisma.config.ts` used `import "dotenv/config"`, which loads only `.env` — NOT `.env.local`
+   (that name is a Next convention). The CLI never saw `DIRECT_URL`. Fixed to explicitly
+   `loadEnv({ path: ".env.local" })` then `loadEnv()` fallback.
 
 ## Open threads / decisions needed
-- [ ] **Review the scaffold, then commit it** (currently all untracked). Suggested msg: `M0: scaffold Next.js 16 + relocate schema to prisma/ (Prisma 7 edits)`.
-- [ ] Provision Neon / Clerk / Sentry and create `.env.local` (plan §10). Blocks Prisma wiring, `migrate dev`, and `npm run dev` with auth.
-- [ ] When adding `.env.example`, add a `!.env.example` exception to `.gitignore` (current `.env*` rule would ignore it).
-- [ ] Watch that build-out stays inside the "Do NOT build" skip list (no ingest, watcher, email, client-facing anything in M0).
+- [ ] Provision **Clerk** (§5): create app, Organizations OFF, put `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+      + `CLERK_SECRET_KEY` into `.env.local`. Then wire `proxy.ts` + `<ClerkProvider>`.
+- [ ] Provision **Sentry** (§7) when ready.
+- [ ] **Railway / prod env (§10)** deferred: set all vars on the Railway service, `migrate deploy` once.
+- [ ] Consider a `postinstall: prisma generate` (or build-step generate) so fresh clones/CI/Railway
+      build the client automatically — `generated/` is gitignored, so build is red until generate runs.
+- [ ] Keep build-out inside the "Do NOT build" skip list (no ingest, watcher, email, client-facing).
