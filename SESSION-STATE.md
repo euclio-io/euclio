@@ -2,8 +2,8 @@
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`
 > (governing rules) and `docs/plans/m0-scaffold.md` (M0 build steps).
-> Last reconciled: 2026-07-27 (add-client-workflow slice implemented, build-verified, and now
-> fully runtime-verified — real sign-in + real Client/Workflow rows — on the second machine).
+> Last reconciled: 2026-07-27 (ping ingest — POST /api/ping/[token] — implemented,
+> build/lint-verified, and smoke-tested end to end against the real shared Neon DB).
 
 ## Milestone: M0 — deployable skeleton (auth + DB + Sentry + one page + health)
 
@@ -127,6 +127,72 @@ message on the commit landing this slice for the rationale summary).
   ran successfully end to end, so this is treated as working by convention rather than
   independently re-verified — flagging the distinction rather than overclaiming.
 
+## Milestone: Ping ingest (`POST /api/ping/[token]`) + "confirm test ping" — DONE
+Per CLAUDE.md's MVP loop, the slice right after "add client + workflow." Full design plan
+in the plan-mode session that produced this commit (see commit message for the summary).
+"Confirm test ping ✓" is CLAUDE.md's own wording for a UI outcome, not a separate
+milestone — satisfied here by `Workflow.lastPingAt`, not `status` (ingest never writes
+`status`; that stays the watcher's job alone, matching the existing comment in
+`createWorkflow`: "the watcher is the only writer of 'healthy'").
+
+- `app/api/ping/[token]/route.ts` (NEW) — `POST` handler. Token lookup baked into one
+  indexed query (`findUnique({ where: { token, archivedAt: null } })`), never a follow-up
+  JS check. Unknown/archived token -> `404`, deliberately uninformative. On success:
+  transactional `Ping.create` + `Workflow.update({ lastPingAt })`, `status` untouched.
+  `export const runtime = "nodejs"` — explicit, since the rate limiter's correctness
+  depends on a single long-lived process, not per-request isolates.
+- `app/api/ping/[token]/rate-limit.ts` (NEW) — in-memory fixed-window limiter (10
+  req/min), keyed by *resolved* `workflow.id` (never the raw token, so map size is
+  bounded by real workflows, not attacker-supplied garbage), with a periodic sweep so
+  memory doesn't grow unboundedly over the process's lifetime. Only correct under a
+  single Railway web instance — CLAUDE.md's own extraction trigger ("(a) you run >1 web
+  instance") is exactly when this stops being valid; not before.
+- `app/api/ping/[token]/read-capped-body.ts` (NEW) — 2KB payload cap enforced against the
+  actual byte stream (`request.body.getReader()`, abort on overflow), not just
+  `Content-Length` (which a caller could omit or lie about). Malformed JSON -> `400`.
+- `lib/base-url.ts` (NEW) — derives the app's public origin from request headers
+  (`x-forwarded-host`/`host`, `x-forwarded-proto`) instead of a new env var; correct in
+  dev and prod with nothing to keep in sync.
+- `lib/format-relative-time.ts` (NEW) — "5m ago" / "never" for the dashboard.
+- `app/dashboard/page.tsx` (EDITED) — replaced the stale "check-in URL isn't live yet"
+  caption with the real, full ping URL, and added a "Last ping" relative-time line.
+- Both ingest helper files are colocated under `app/api/ping/[token]/`, not `lib/` —
+  keeps the module the literal "self-contained... extractable via lift-and-shift" folder
+  CLAUDE.md's topology section describes.
+- No new dependency, no test file (CLAUDE.md scopes tests to `facts.ts` and the watcher
+  only, neither touched here).
+
+### Verification performed (this machine, real Neon DB via the Railway-pulled `.env.local`)
+- `npm run build` (`prisma generate && next build`) and `npm run lint` — both clean;
+  `/api/ping/[token]` compiles as dynamic (`ƒ`).
+- Live smoke test against a real workflow token via `curl`, covering every case in the
+  plan's response table:
+  - Valid POST, empty body -> `200`, `Ping` row created (`payload: null`), `lastPingAt`
+    bumped.
+  - Valid POST with a small JSON body -> `200`, `Ping.payload` stored correctly.
+  - Unknown token -> `404`.
+  - Malformed JSON body -> `400`, no `Ping` row.
+  - Oversized payload via `Content-Length` -> `413`, no `Ping` row.
+  - Oversized payload via chunked transfer with NO `Content-Length` (tests the streaming
+    cap specifically, not just the header shortcut) -> `413`, no `Ping` row.
+  - 11+ rapid requests to the same token -> the 6th of a fresh batch (10th overall,
+    counting earlier test requests against the same limiter bucket) returned `429`; DB
+    check confirmed exactly 7 `Ping` rows existed at that point, matching the 7 genuinely
+    successful requests (failed/rejected requests that still passed the rate-limit gate
+    before failing later do consume a slot, by design, but never write a `Ping` row).
+  - Archived workflow's token (fabricated via a throwaway script, deleted after) -> `404`.
+  - Confirmed `Workflow.status` stayed `pending` throughout — ingest never touched it.
+  - Dashboard: reloaded `/dashboard` in the browser (user-confirmed) — both the real ping
+    URL and "Last ping" relative time render correctly for the pinged workflow.
+- **Not independently re-verified**: whether `logger.info("ping.received", ...)` /
+  `logger.warn("ping.rate_limited", ...)` actually reached Sentry. Attempted to check via
+  the Sentry API using the existing `SENTRY_AUTH_TOKEN`, but that token's scope is
+  `project:releases` (source-map upload only) — got a 403 attempting to read events/logs.
+  Same situation as the previous slice: treated as working by the same `lib/logger.ts`
+  convention already confirmed reaching Sentry for `account.created`/`client.created` in
+  earlier milestones, not independently re-proven this session. A token with broader read
+  scope (or checking the Sentry dashboard UI directly) would close this gap for real.
+
 ## Environment — TWO machines now, tracked separately (this repeats going forward)
 
 ### Laptop (previous session, as of 2026-07-27 M0 work)
@@ -200,5 +266,13 @@ message on the commit landing this slice for the rationale summary).
 - [ ] **Multi-machine onboarding bootstrap** (still open, see Environment above): the manual
       Railway CLI + `railway variables` pull worked and unblocked this session, but isn't
       scripted yet. Worth turning into one command before a third machine needs onboarding.
-- [ ] Next slice: ping ingest (`POST /api/ping/[token]`)
+- [x] ~~Next slice: ping ingest~~: done, see the "Ping ingest" milestone above.
+- [ ] **Sentry log delivery for ping-ingest events not independently confirmed** (see the
+      Ping ingest milestone's verification notes) — the auth token on hand can't read
+      events back. Worth closing out with a broader-scoped token or a manual dashboard
+      check next time this area is touched.
+- [ ] Next slice: node-cron watcher (reconcile + debounce + dead-man's-switch), the step
+      right after this one in the MVP loop. This is the first slice CLAUDE.md explicitly
+      requires automated tests for ("the watcher (reconcile + debounce time-logic)") —
+      the first slice that needs a test runner introduced at all.
       + "confirm test ping" UI, per the MVP loop — not started.

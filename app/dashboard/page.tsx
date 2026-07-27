@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
+import { getBaseUrl } from "@/lib/base-url";
+import { formatRelativeTime } from "@/lib/format-relative-time";
 import { AddClientForm } from "./add-client-form";
 import { AddWorkflowForm } from "./add-workflow-form";
 
@@ -17,6 +19,7 @@ export default async function DashboardPage() {
   if (!userId) redirect("/sign-in"); // protect close to the resource
 
   const account = await getOrCreateAccountForCurrentUser();
+  const baseUrl = await getBaseUrl();
 
   // CANONICAL TENANT-SCOPING PATTERN — the security invariant of the whole app.
   // Every query scopes by accountId, sourced ONLY from the resolved Account,
@@ -72,8 +75,16 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                        Ping token (check-in URL isn&apos;t live yet):{" "}
-                        <code className="text-zinc-600 dark:text-zinc-400">{workflow.token}</code>
+                        Ping URL:{" "}
+                        <code className="text-zinc-600 dark:text-zinc-400">
+                          {baseUrl}/api/ping/{workflow.token}
+                        </code>
+                      </div>
+                      <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                        Last ping:{" "}
+                        {workflow.lastPingAt
+                          ? formatRelativeTime(workflow.lastPingAt)
+                          : "never"}
                       </div>
                     </li>
                   ))}
