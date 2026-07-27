@@ -1,0 +1,198 @@
+// Euclio — Prisma schema (M0)
+// Shaped from the data-model inversion: tenant root, honest status, soft-delete
+// on the two things whose history is the product, authored notes, a sent-update
+// entity, and cheap future-proofing columns. Boring and small on purpose.
+//
+// Invariants the code must uphold (see CLAUDE.md):
+//  - Scope EVERY query by accountId. The tenant boundary is what a bug would leak across.
+//  - The watcher never sets status = healthy for a span it did not actually observe.
+//  - Notes and ClientUpdate bodies are ALWAYS human-authored (authorUserId). Euclio
+//    only derives facts; it never writes a note or a verdict.
+//  - Client and Workflow are soft-deleted (archivedAt), never hard-deleted — history
+//    is the retainer proof.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- enums ----------------
+
+enum WorkflowStatus {
+  pending // added, no ping received yet — NOT "healthy"
+  healthy // pinged within its window
+  down    // overdue past grace → an open incident exists
+  paused  // freelancer disabled monitoring
+}
+
+enum PingKind {
+  beat  // the only kind used in v1: "it ran"
+  start // reserved: start of a run (for hung-process detection later)
+  end   // reserved: end of a run
+  fail  // reserved: the automation reported its own failure
+}
+
+enum IncidentSource {
+  heartbeat       // v1: a missed check-in
+  client_reported // reserved
+  anomaly         // reserved
+}
+
+enum IncidentStatus {
+  open
+  resolved
+}
+
+// ---------------- tenant ----------------
+
+model Account {
+  id         String   @id @default(cuid())
+  clerkOrgId String   @unique // maps to a Clerk Organization (solo freelancer = personal org)
+  name       String
+  timezone   String   @default("UTC") // render honest times in the right zone
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  users         User[]
+  clients       Client[]
+  notes         Note[]
+  clientUpdates ClientUpdate[]
+}
+
+model User {
+  id          String   @id @default(cuid())
+  clerkUserId String   @unique
+  accountId   String
+  email       String
+  name        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  notes         Note[]
+  clientUpdates ClientUpdate[]
+
+  @@index([accountId])
+}
+
+// ---------------- monitored surface ----------------
+
+model Client {
+  id         String    @id @default(cuid())
+  accountId  String
+  name       String
+  timezone   String? // optional per-client override of Account.timezone
+  archivedAt DateTime? // soft-delete: never lose the record
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  workflows     Workflow[]
+  clientUpdates ClientUpdate[]
+
+  @@index([accountId])
+}
+
+model Workflow {
+  id                      String         @id @default(cuid())
+  clientId                String
+  name                    String
+  token                   String         @unique // unguessable bearer token embedded in the ping URL
+  expectedIntervalMinutes Int // "expect a ping at least every N minutes"
+  graceMinutes            Int            @default(5)
+  status                  WorkflowStatus @default(pending)
+  lastPingAt              DateTime?
+  archivedAt              DateTime? // soft-delete
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pings     Ping[]
+  incidents Incident[]
+  notes     Note[]
+
+  @@index([clientId])
+  @@index([status])
+}
+
+model Ping {
+  id         String   @id @default(cuid())
+  workflowId String
+  receivedAt DateTime @default(now())
+  kind       PingKind @default(beat)
+  payload    Json? // reserved for an optional business metric / summary later
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, receivedAt])
+}
+
+model Incident {
+  id         String         @id @default(cuid())
+  workflowId String
+  source     IncidentSource @default(heartbeat)
+  status     IncidentStatus @default(open)
+  openedAt   DateTime       @default(now())
+  resolvedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  notes    Note[]
+
+  @@index([workflowId])
+  @@index([status])
+}
+
+// ---------------- human layer ----------------
+
+// The freelancer's comment on a line. ALWAYS human-authored. Euclio never writes one.
+// Attaches to exactly one target: an incident OR a workflow line.
+model Note {
+  id           String   @id @default(cuid())
+  accountId    String
+  authorUserId String
+  text         String
+  incidentId   String?
+  workflowId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account  Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorUserId], references: [id])
+  incident Incident? @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  workflow Workflow? @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([incidentId])
+  @@index([workflowId])
+}
+
+// What the freelancer curated and sent the client. The record behind the retainer,
+// the source for the no-login page (publicSlug), and the revealed-preference data
+// (what they chose to include/change). Compose/send flow lands at M5/M6; the table
+// exists now so that's never a migration.
+model ClientUpdate {
+  id           String    @id @default(cuid())
+  accountId    String
+  clientId     String
+  authorUserId String
+  bodyText     String
+  publicSlug   String    @unique // stable, unguessable URL for the no-login page
+  coversFrom   DateTime?
+  coversTo     DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorUserId], references: [id])
+
+  @@index([accountId])
+  @@index([clientId])
+}
