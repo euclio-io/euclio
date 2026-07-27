@@ -51,7 +51,7 @@ enum IncidentStatus {
 
 model Account {
   id         String   @id @default(cuid())
-  clerkOrgId String   @unique // maps to a Clerk Organization (solo freelancer = personal org)
+  clerkOrgId String?  @unique // set only if/when an agency adopts a real Clerk Org; null for solo freelancers. Account.id is the tenant key, not this.
   name       String
   timezone   String   @default("UTC") // render honest times in the right zone
   createdAt  DateTime @default(now())
