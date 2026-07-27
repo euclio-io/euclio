@@ -39,15 +39,18 @@
 - ⚠ Railway build needs `DIRECT_URL` present as a build env var (prisma.config.ts reads it during
   `prisma generate`) — fold into the §10 env setup.
 
-### In progress — Railway deploy (plan §10)
-- Railway project **thorough-possibility**, env **production**, service **euclio**. Service deployed by user.
-- Sentry source-map tokens (`SENTRY_AUTH_TOKEN`/`ORG`/`PROJECT`) filled by user.
-- **`railway run npx prisma migrate deploy` run against production → "No pending migrations to apply."**
-  Confirms Railway uses the SAME shared Neon DB (`ep-flat-sound-awealxsh`) as local — the one-DB rule
-  holds — and the `init` schema is live in prod.
-- **Still to verify (§10 acceptance):** hit `<deployed-url>/api/health` → `{status:"ok"}`, and complete
-  a sign-up on the deployed URL → Account/User row created in prod. Clerk is still a DEV instance
-  (fine for now; production instance + Euclio-branded Google OAuth is a later open thread).
+### ✅ DONE — Railway deploy (plan §10) — M0 COMPLETE
+- Railway project **thorough-possibility**, env **production**, service **euclio**. URL:
+  https://euclio-production.up.railway.app
+- Env vars point at the SAME shared Neon DB (`ep-flat-sound-awealxsh`), no Railway-provisioned Postgres —
+  one-DB rule holds. Sentry source-map tokens filled.
+- `railway run npx prisma migrate deploy` → "No pending migrations to apply" (schema live in prod).
+- **Verified in prod:** `/api/health` → `200 {status:"ok"}`; `/dashboard` unauth → `307 /sign-in`;
+  Google sign-in works; scoped prod DB read = 1 Account (`clerkOrgId NULL`) + 1 User, no duplicate
+  (idempotent tenant path across dev/prod).
+
+## 🎉 M0 skeleton is DONE and deployed. All of §1–§10 committed to `master` and verified in production.
+Next milestone would be M1 (ping ingest + status) per the MVP loop in CLAUDE.md — NOT started; awaiting go-ahead.
 
 ## Environment (this machine, 2026-07-27)
 - **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` + `@sentry/nextjs` present.
@@ -79,13 +82,13 @@
    `loadEnv({ path: ".env.local" })` then `loadEnv()` fallback.
 
 ## Open threads / decisions needed
-- [ ] **Sentry source maps (finish §7 for prod):** fill `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` +
-      `SENTRY_PROJECT` in `.env.local` (and on Railway) so `withSentryConfig` uploads source maps for
-      readable prod stack traces. App + error capture already work without them.
-- [ ] **Railway / prod env (§10)** deferred: set all vars on the Railway service, `migrate deploy` once.
-- [ ] Consider a `postinstall: prisma generate` (or build-step generate) so fresh clones/CI/Railway
-      build the client automatically — `generated/` is gitignored, so build is red until generate runs.
-      (Becomes necessary at §9 Railway deploy; fine to skip locally.)
+- [ ] **Clerk PRODUCTION instance** (before real launch): current keys are a Clerk DEV instance.
+      A production instance needs its own keys (into Railway env) and its own custom OAuth credentials.
+      This is the natural moment to do the Google OAuth rebrand below.
+- [x] ~~Sentry source maps~~: `SENTRY_AUTH_TOKEN`/`ORG`/`PROJECT` filled + on Railway; `withSentryConfig`
+      uploads on build. (If the current deploy predated the tokens, next deploy uploads maps.)
+- [x] ~~Railway / prod env (§10)~~: done — vars set, `migrate deploy` run, prod verified.
+- [x] ~~postinstall/build-step prisma generate~~: done — `build = "prisma generate && next build"`.
 - [ ] **Rebrand Google OAuth consent → "Euclio"** (production-setup, deferred): the Google sign-in
       screen currently says "Sign in to Clerk" because the Clerk DEV instance uses Clerk's shared
       Google OAuth credentials. Fix at production-instance setup: create a Google Cloud OAuth client
