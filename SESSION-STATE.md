@@ -2,8 +2,8 @@
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`
 > (governing rules) and `docs/plans/m0-scaffold.md` (M0 build steps).
-> Last reconciled: 2026-07-27 (add-client-workflow slice implemented + build-verified on a
-> fresh machine; not yet runtime-tested against a live Neon/Clerk instance on this machine).
+> Last reconciled: 2026-07-27 (add-client-workflow slice implemented, build-verified, and now
+> fully runtime-verified — real sign-in + real Client/Workflow rows — on the second machine).
 
 ## Milestone: M0 — deployable skeleton (auth + DB + Sentry + one page + health)
 
@@ -52,7 +52,7 @@
 
 ## 🎉 M0 skeleton is DONE and deployed. All of §1–§10 committed to `master` and verified in production.
 
-## Milestone: "Add client + workflow" — IMPLEMENTED, build-verified, NOT yet runtime-tested
+## Milestone: "Add client + workflow" — IMPLEMENTED and RUNTIME-VERIFIED
 Per CLAUDE.md's MVP loop (`add client + workflow -> confirm test ping -> ping ingest + status -> ...`),
 this is the slice right after M0 and right before ping ingest — deliberately scoped to
 just the CRUD (confirmed with the user): no ping ingest endpoint, no "confirm test ping"
@@ -100,12 +100,32 @@ message on the commit landing this slice for the rationale summary).
   run for real without touching any live service. `npm run build` (`prisma generate && next
   build`) — clean; `/dashboard` correctly compiles as a dynamic route (`ƒ`), confirming no
   DB query fires at build time even without a real `DATABASE_URL`. `npm run lint` — clean.
-- **NOT done**: real runtime testing (sign in, actually create a Client/Workflow, verify
-  rows in Neon, verify the cross-tenant "Client not found" rejection, verify
-  `logger.info` reaches Sentry). This needs real Neon/Clerk/Sentry credentials, which this
-  machine doesn't have — the placeholder `.env.local` must be replaced with real values
-  (or swapped in from wherever the other machine's values live) before any of that can run.
-  Flagging this explicitly so it isn't mistaken for "fully verified."
+### Runtime verification (same session, after pulling real credentials from Railway)
+- Installed the Railway CLI (`~/.railway/bin`), authenticated via `railway login` (user-run,
+  interactive — no token ever pasted into the agent conversation), linked this directory to
+  `thorough-possibility` / `production` / `euclio`, and pulled real env vars via
+  `railway variables --json` to replace the placeholder `.env.local`. Dev/prod share one
+  Neon DB (documented above), so these are the same credentials the deployed service uses.
+- Direct DB-level check (throwaway script, real DB, rows created and deleted in the same
+  run — never left in the shared DB): the exact `findFirst({id, accountId})` ownership
+  query rejects a fabricated cross-tenant `clientId` (returns null) and accepts the correct
+  same-tenant one; a `Workflow` created the same way the action does (status omitted)
+  defaults to `pending`; a generated token matches the expected 32-char base64url shape.
+  This covered the highest-severity security logic without needing a browser session.
+- **Full browser runtime test — done by the user**: signed in for real, added a Client
+  ("Sentry") and a Workflow under it ("Pull Gong Context", every 2m) through the actual UI.
+  Confirmed: the workflow list renders with `PENDING` status, the interval, and the token
+  with the "not live yet" caption — the real Server Action path (`createClient` ->
+  `createWorkflow` -> `revalidatePath`) working end to end, not just the direct-DB shortcut
+  above. One thing surfaced in Next's dev overlay during this: the pre-existing `pg`
+  SSL-mode deprecation warning (see "Minor — pg SSL mode warning" below) — benign, not a
+  regression, just the first time it rendered as a browser overlay instead of a terminal
+  line (this was the first real DB hit that originated from an actual browser request).
+- Not independently re-checked via the Sentry API: that `client.created`/`workflow.created`
+  actually landed as Sentry log events. The code path is the same `lib/logger.ts` call
+  convention already confirmed reaching Sentry for `account.created` in M0, and the action
+  ran successfully end to end, so this is treated as working by convention rather than
+  independently re-verified — flagging the distinction rather than overclaiming.
 
 ## Environment — TWO machines now, tracked separately (this repeats going forward)
 
@@ -125,14 +145,15 @@ message on the commit landing this slice for the rationale summary).
   Installed `nvm` + Node 22.23.1 this session. **Same caveat as the laptop applies going
   forward: new shells start on system Node 18, always `nvm use` (or `nvm use 22`) first.**
 - `npm install` run this session — `node_modules` now present, matches lockfile.
-- **`.env.local` exists (gitignored), PLACEHOLDER values only** — fake Neon/Clerk/Sentry
-  strings, created solely so `npm run build` could be verified without a live DB. **Must be
-  replaced with real values before `npm run dev` or any runtime testing on this machine.**
-- Onboarding this machine properly (pulling real secrets instead of hand-copying) was
-  discussed and deliberately deferred: since dev and prod currently share the same Neon DB,
-  `railway variables`/`railway run` could pull the real values directly — planned as a
-  follow-up bootstrap script, not done yet. This exact two-machine gap is expected to recur,
-  so it's worth doing before a third machine/session needs onboarding.
+- **Railway CLI installed** (`~/.railway/bin`, added to `PATH` via `~/.bashrc`), authenticated
+  via user-run `railway login`, linked to `thorough-possibility` / `production` / `euclio`.
+- **`.env.local` exists (gitignored), REAL values** — pulled via `railway variables --json`
+  (same credentials the deployed service uses; dev/prod share one Neon DB, see below).
+  No longer the placeholder from earlier in this session.
+- The two-machine onboarding gap this session hit is now solved *manually* (Railway CLI +
+  `railway variables` pull) but not yet *scripted* — still worth a small bootstrap script
+  (`nvm install 22 && nvm use 22 && npm install && railway link && railway variables --json > ...`)
+  before a third machine/session needs onboarding, so this doesn't repeat step-by-step.
 
 ## Anchor-file reconciliation
 - `CLAUDE.md` → `## Topology` section **present** (modular-monolith, web + watcher split). ✓
@@ -169,15 +190,15 @@ message on the commit landing this slice for the rationale summary).
       pg v9 (currently treated as the stricter `verify-full`). Our Neon URLs use `sslmode=require`.
       No action now (current behavior is safe); revisit if we bump pg to v9.
 - [ ] Keep build-out inside the "Do NOT build" skip list (no ingest, watcher, email, client-facing).
-- [ ] **Runtime-verify the add-client-workflow slice** on whichever machine has real
-      credentials first: sign in, create a Client, create a Workflow (including a bad
-      input to see the inline error), confirm rows in Neon via `prisma studio`, confirm the
-      cross-tenant `findFirst` rejection actually returns "Client not found." with no write,
-      confirm `client.created`/`workflow.created` reach Sentry with no name/token in the
-      attributes. Build+lint are clean; this is the remaining, more important check.
-- [ ] **Multi-machine onboarding bootstrap** (deferred, see Environment above): a script that
-      does `nvm install 22 && nvm use 22 && npm install` plus pulls real env vars via
-      `railway variables`/`railway run` instead of hand-copying `.env.local`. Worth doing
-      before a third machine needs onboarding — this session hit the exact gap it would fix.
-- [ ] Next slice after this one (once runtime-verified): ping ingest (`POST /api/ping/[token]`)
+- [x] ~~Runtime-verify the add-client-workflow slice~~: done — signed in for real, created a
+      Client + Workflow through the actual UI, confirmed `PENDING` status/interval/token
+      render correctly. Cross-tenant rejection + `status`/token defaults verified directly
+      against the DB (throwaway rows, cleaned up). Sentry log delivery for the new
+      `client.created`/`workflow.created` calls specifically was NOT independently
+      re-checked via the Sentry API — inferred working from the same convention already
+      confirmed for `account.created` in M0, not re-proven this session.
+- [ ] **Multi-machine onboarding bootstrap** (still open, see Environment above): the manual
+      Railway CLI + `railway variables` pull worked and unblocked this session, but isn't
+      scripted yet. Worth turning into one command before a third machine needs onboarding.
+- [ ] Next slice: ping ingest (`POST /api/ping/[token]`)
       + "confirm test ping" UI, per the MVP loop — not started.
