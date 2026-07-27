@@ -18,38 +18,43 @@
   unique index). Pushed. Fixed two plan gaps (see below).
 - `3212ee4` — Clerk auth foundation (§5): `@clerk/nextjs@7.6.1`, `proxy.ts` bare `clerkMiddleware()`
   (no route-gating), `<ClerkProvider>` in `app/layout.tsx`. Build/dev verified. Pushed.
+- `6767b1f` — account auto-create + auth pages + tenant-scoped dashboard (§6): `lib/account.ts`
+  (`auth()` JWT lookup, first-visit `currentUser()` + transactional create, P2002 retry), mounted
+  `<SignIn/>`/`<SignUp/>`, `<ClerkProvider>` routing props, `auth()`-guarded `/dashboard` with the
+  canonical `accountId`-scoped query, minimal landing. Verified with a real Google sign-up +
+  scoped DB read (1 Account `clerkOrgId=NULL` + 1 linked User). Pushed.
 
-### Just done — account auto-create + auth pages (plan §6), UNCOMMITTED
-- `lib/account.ts` `getOrCreateAccountForCurrentUser()`: `auth()` (JWT, no network) → lookup User by
-  `clerkUserId`; on first visit `currentUser()` + create Account+User in one `$transaction`; P2002
-  (two-tabs race) → re-resolve. Improvement over plan: `currentUser()` only on the create path.
-- `app/sign-in|sign-up/[[...]]/page.tsx` mounting `<SignIn/>`/`<SignUp/>` on our domain (user's chosen approach).
-- Routing as `<ClerkProvider>` props (signIn/UpUrl + *FallbackRedirectUrl=/dashboard) — NOT env vars,
-  since these paths are app structure, not per-env config.
-- `app/dashboard/page.tsx`: `auth()`-guard → redirect `/sign-in`; then the CANONICAL tenant-scoping
-  query `client.count({ where: { accountId } })` with the invariant documented as a review gate.
-- `app/page.tsx`: minimal Euclio landing → link to `/dashboard`.
-- **Verified end-to-end:** build green (routes `/dashboard` `/sign-in` `/sign-up`), `tsc` clean,
-  `/dashboard` unauth → 307 `/sign-in`, real Google sign-up → landed on dashboard, and a scoped DB
-  read confirms exactly 1 Account (`clerkOrgId = NULL`) + 1 linked User. No duplicates.
+### Just done — Sentry + structured logging (plan §7), UNCOMMITTED
+- Installed `@sentry/nextjs@10.68.0` (no Next 16 peer conflict). Manual wiring (wizard needs an
+  interactive Sentry login that doesn't fit this env).
+- `instrumentation.ts` (runtime-split register + `onRequestError`), `sentry.server.config.ts`,
+  `sentry.edge.config.ts`, `instrumentation-client.ts` (+ `onRouterTransitionStart`). All init with
+  `enableLogs: true` and `sendDefaultPii: false` (explicit no-PII stance).
+- `next.config.ts` wrapped in `withSentryConfig` (org/project/authToken from env; source-map upload
+  is build-time only and skipped without the token).
+- `lib/logger.ts` — thin wrapper over `Sentry.logger.{info,warn,error}` (attrs typed
+  `Record<string, unknown>`; note: `logger.info` has an extra template-literal overload, so don't
+  inherit its Parameters type). Swapped the `console.info("account.created")` placeholder for it.
+- `.env.local`/`.env.example`: `NEXT_PUBLIC_SENTRY_DSN` set (public, safe); auth token + org/project blank.
+- **Verified:** build + `tsc` clean; a temporary `/api/sentry-check` route captured an exception + a
+  log and `Sentry.flush()` returned `true` (queue drained to the project), no transport errors. Route deleted.
 
 ### Not started (rest of `docs/plans/m0-scaffold.md`)
-Sentry (§7), `/api/health` (§8), `railway.json` (§9), Railway deploy + prod env (§10). None need new migrations.
+`/api/health` (§8), `railway.json` (§9), Railway deploy + prod env (§10). None need new migrations.
 
-### Single next slice (per plan §7)
-Sentry: `npx @sentry/wizard -i nextjs` (or manual `instrumentation.ts`, `sentry.*.config.ts`,
-`instrumentation-client.ts`, `withSentryConfig` in `next.config.ts`) + `lib/logger.ts` wrapping
-`Sentry.logger.*` (swap the `console.info("account.created")` placeholder in `lib/account.ts`).
-Credential-gated: needs `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
+### Single next slice (per plan §8)
+`app/api/health/route.ts` — public, no auth, no DB round-trip: `GET` returns `{ status: "ok",
+timestamp }`. Pure process-alive check for Railway's healthcheck. NOT credential-gated — pure code.
 
 ## Environment (this machine, 2026-07-27)
-- **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` present. Sentry packages NOT yet added.
+- **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` + `@sentry/nextjs` present.
 - **Node: OK when activated.** Node `v22.21.1` via `nvm use 22` (`.nvmrc` pins it). `nvm default` still points to Node 20 and new shells start on Node 18 — run `nvm use` in the repo first. Every command that touches node/npm/prisma must source nvm + `nvm use 22`.
 - **Minor:** `npm run build` warns "Detected additional lockfiles" (a `package-lock.json` higher up the tree). Benign; can pin Turbopack root later via `next.config.ts`.
 - **`.env.local` exists (gitignored):**
   - Neon: `DATABASE_URL` (pooled) + `DIRECT_URL` (unpooled) — **set, working** (migration applied through them).
   - Clerk: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — **set, working** (dev instance; Organizations OFF).
-  - Sentry: `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — **still missing** (§7).
+  - Sentry: `NEXT_PUBLIC_SENTRY_DSN` — **set, working** (events verified reaching the project).
+    `SENTRY_AUTH_TOKEN`/`SENTRY_ORG`/`SENTRY_PROJECT` — **still blank** (build-time source-map upload only; needed for readable prod stack traces at §9/§10).
   - Prod (Railway) env vars: **not set** — deferred to §10.
 
 ## Anchor-file reconciliation
@@ -71,7 +76,9 @@ Credential-gated: needs `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_O
    `loadEnv({ path: ".env.local" })` then `loadEnv()` fallback.
 
 ## Open threads / decisions needed
-- [ ] Provision **Sentry** (§7) when ready: keys into `.env.local`, then wizard/manual wiring + `lib/logger.ts`.
+- [ ] **Sentry source maps (finish §7 for prod):** fill `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` +
+      `SENTRY_PROJECT` in `.env.local` (and on Railway) so `withSentryConfig` uploads source maps for
+      readable prod stack traces. App + error capture already work without them.
 - [ ] **Railway / prod env (§10)** deferred: set all vars on the Railway service, `migrate deploy` once.
 - [ ] Consider a `postinstall: prisma generate` (or build-step generate) so fresh clones/CI/Railway
       build the client automatically — `generated/` is gitignored, so build is red until generate runs.

@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { Prisma, type Account } from "../generated/prisma/client";
 import { prisma } from "./prisma";
+import { logger } from "./logger";
 
 /**
  * Ensures the currently signed-in Clerk user has an Account (tenant root) and a
@@ -66,9 +67,9 @@ export async function getOrCreateAccountForCurrentUser(): Promise<Account> {
       return created;
     });
 
-    // Structured logging (CLAUDE.md: "from M0"). Placeholder over console until
-    // the Sentry logger lands in §7. No PII: accountId only, never email/name.
-    console.info("account.created", { accountId: account.id });
+    // Structured logging (CLAUDE.md: "from M0"). No PII: accountId only, never
+    // the email/name we just wrote to the row.
+    logger.info("account.created", { accountId: account.id });
     return account;
   } catch (e) {
     // P2002 = unique violation on User.clerkUserId: a concurrent first-load won
