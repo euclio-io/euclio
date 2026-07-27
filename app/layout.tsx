@@ -25,8 +25,19 @@ export default function RootLayout({
 }>) {
   // ClerkProvider must wrap the whole tree so Clerk's client context and the
   // server-side auth helpers are available everywhere below it.
+  //
+  // Routing lives here as props, not env vars: these paths are app structure
+  // (they never differ per environment), so keeping them in code avoids env
+  // sprawl. signIn/UpUrl tell Clerk where our mounted pages are;
+  // *FallbackRedirectUrl is where to land after auth when no explicit return
+  // URL was set.
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+    >
       <html
         lang="en"
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}

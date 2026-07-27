@@ -16,25 +16,31 @@
   `prisma.config.ts` (CLI, `DIRECT_URL`), `lib/prisma.ts` (app, pooled `DATABASE_URL`, `max:5`),
   `.env.example`, migration `20260727163422_init` applied to Neon (`clerkOrgId` nullable `TEXT` +
   unique index). Pushed. Fixed two plan gaps (see below).
+- `3212ee4` — Clerk auth foundation (§5): `@clerk/nextjs@7.6.1`, `proxy.ts` bare `clerkMiddleware()`
+  (no route-gating), `<ClerkProvider>` in `app/layout.tsx`. Build/dev verified. Pushed.
 
-### Just done — Clerk auth foundation (plan §5), UNCOMMITTED
-- Installed `@clerk/nextjs@7.6.1` (no Next 16 peer conflict).
-- `proxy.ts` — Next 16's renamed middleware; bare `clerkMiddleware()`, NO route-gating
-  (protection lands at the resource in §6). Confirmed Next 16 supports the `proxy` filename.
-- `app/layout.tsx` — wrapped in `<ClerkProvider>`; replaced placeholder metadata with Euclio's.
-- `.env.local` + `.env.example` gained the two Clerk key slots; user filled `.env.local`.
-- **Verified:** `npm run build` green (registers `ƒ Proxy (Middleware)`), `tsc` clean, dev server
-  boots → `/` returns 200, title "Euclio", Clerk connects to a dev instance (no key errors).
+### Just done — account auto-create + auth pages (plan §6), UNCOMMITTED
+- `lib/account.ts` `getOrCreateAccountForCurrentUser()`: `auth()` (JWT, no network) → lookup User by
+  `clerkUserId`; on first visit `currentUser()` + create Account+User in one `$transaction`; P2002
+  (two-tabs race) → re-resolve. Improvement over plan: `currentUser()` only on the create path.
+- `app/sign-in|sign-up/[[...]]/page.tsx` mounting `<SignIn/>`/`<SignUp/>` on our domain (user's chosen approach).
+- Routing as `<ClerkProvider>` props (signIn/UpUrl + *FallbackRedirectUrl=/dashboard) — NOT env vars,
+  since these paths are app structure, not per-env config.
+- `app/dashboard/page.tsx`: `auth()`-guard → redirect `/sign-in`; then the CANONICAL tenant-scoping
+  query `client.count({ where: { accountId } })` with the invariant documented as a review gate.
+- `app/page.tsx`: minimal Euclio landing → link to `/dashboard`.
+- **Verified end-to-end:** build green (routes `/dashboard` `/sign-in` `/sign-up`), `tsc` clean,
+  `/dashboard` unauth → 307 `/sign-in`, real Google sign-up → landed on dashboard, and a scoped DB
+  read confirms exactly 1 Account (`clerkOrgId = NULL`) + 1 linked User. No duplicates.
 
 ### Not started (rest of `docs/plans/m0-scaffold.md`)
-Account/User auto-create + sign-in/up + protected `/dashboard` (§6), Sentry (§7),
-`/api/health` (§8), `railway.json` (§9), Railway deploy + prod env (§10). None need new migrations.
+Sentry (§7), `/api/health` (§8), `railway.json` (§9), Railway deploy + prod env (§10). None need new migrations.
 
-### Single next slice (per plan §6)
-`lib/account.ts` `getOrCreateAccountForCurrentUser()` (lazy, tx, P2002-retry), sign-in/up routing
-with post-auth redirect to `/dashboard`, and `app/dashboard/page.tsx` that `auth()`-guards, creates
-the Account/User, and does one `accountId`-scoped `client.count`. Uses the Clerk keys already set —
-NOT credential-gated. First feature code touching the DB; propose structure before writing (global CLAUDE.md).
+### Single next slice (per plan §7)
+Sentry: `npx @sentry/wizard -i nextjs` (or manual `instrumentation.ts`, `sentry.*.config.ts`,
+`instrumentation-client.ts`, `withSentryConfig` in `next.config.ts`) + `lib/logger.ts` wrapping
+`Sentry.logger.*` (swap the `console.info("account.created")` placeholder in `lib/account.ts`).
+Credential-gated: needs `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
 
 ## Environment (this machine, 2026-07-27)
 - **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` present. Sentry packages NOT yet added.
@@ -65,10 +71,17 @@ NOT credential-gated. First feature code touching the DB; propose structure befo
    `loadEnv({ path: ".env.local" })` then `loadEnv()` fallback.
 
 ## Open threads / decisions needed
-- [ ] Provision **Clerk** (§5): create app, Organizations OFF, put `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-      + `CLERK_SECRET_KEY` into `.env.local`. Then wire `proxy.ts` + `<ClerkProvider>`.
-- [ ] Provision **Sentry** (§7) when ready.
+- [ ] Provision **Sentry** (§7) when ready: keys into `.env.local`, then wizard/manual wiring + `lib/logger.ts`.
 - [ ] **Railway / prod env (§10)** deferred: set all vars on the Railway service, `migrate deploy` once.
 - [ ] Consider a `postinstall: prisma generate` (or build-step generate) so fresh clones/CI/Railway
       build the client automatically — `generated/` is gitignored, so build is red until generate runs.
+      (Becomes necessary at §9 Railway deploy; fine to skip locally.)
+- [ ] **Rebrand Google OAuth consent → "Euclio"** (production-setup, deferred): the Google sign-in
+      screen currently says "Sign in to Clerk" because the Clerk DEV instance uses Clerk's shared
+      Google OAuth credentials. Fix at production-instance setup: create a Google Cloud OAuth client
+      (consent screen named Euclio) and add it as custom credentials in Clerk → SSO Connections →
+      Google. Cosmetic in dev; Clerk production requires custom credentials anyway.
+- [ ] **Minor — pg SSL mode warning:** `pg` warns that `sslmode=require` will change semantics in
+      pg v9 (currently treated as the stricter `verify-full`). Our Neon URLs use `sslmode=require`.
+      No action now (current behavior is safe); revisit if we bump pg to v9.
 - [ ] Keep build-out inside the "Do NOT build" skip list (no ingest, watcher, email, client-facing).
