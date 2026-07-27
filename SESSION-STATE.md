@@ -23,28 +23,30 @@
   `<SignIn/>`/`<SignUp/>`, `<ClerkProvider>` routing props, `auth()`-guarded `/dashboard` with the
   canonical `accountId`-scoped query, minimal landing. Verified with a real Google sign-up +
   scoped DB read (1 Account `clerkOrgId=NULL` + 1 linked User). Pushed.
+- `a41d312` — Sentry + structured logging (§7): `@sentry/nextjs@10.68.0`, `instrumentation.ts`
+  (+`onRequestError`), `sentry.server/edge.config.ts`, `instrumentation-client.ts`, `withSentryConfig`
+  in `next.config.ts` (all `enableLogs:true`, `sendDefaultPii:false`), `lib/logger.ts` choke point
+  (replaces the `console.info` placeholder). Verified via a temp route: `Sentry.flush()` → `true`. Pushed.
 
-### Just done — Sentry + structured logging (plan §7), UNCOMMITTED
-- Installed `@sentry/nextjs@10.68.0` (no Next 16 peer conflict). Manual wiring (wizard needs an
-  interactive Sentry login that doesn't fit this env).
-- `instrumentation.ts` (runtime-split register + `onRequestError`), `sentry.server.config.ts`,
-  `sentry.edge.config.ts`, `instrumentation-client.ts` (+ `onRouterTransitionStart`). All init with
-  `enableLogs: true` and `sendDefaultPii: false` (explicit no-PII stance).
-- `next.config.ts` wrapped in `withSentryConfig` (org/project/authToken from env; source-map upload
-  is build-time only and skipped without the token).
-- `lib/logger.ts` — thin wrapper over `Sentry.logger.{info,warn,error}` (attrs typed
-  `Record<string, unknown>`; note: `logger.info` has an extra template-literal overload, so don't
-  inherit its Parameters type). Swapped the `console.info("account.created")` placeholder for it.
-- `.env.local`/`.env.example`: `NEXT_PUBLIC_SENTRY_DSN` set (public, safe); auth token + org/project blank.
-- **Verified:** build + `tsc` clean; a temporary `/api/sentry-check` route captured an exception + a
-  log and `Sentry.flush()` returned `true` (queue drained to the project), no transport errors. Route deleted.
+### Just done — /api/health + Railway config (plan §8 + §9), UNCOMMITTED
+- `app/api/health/route.ts` — public `GET` → `{ status: "ok", timestamp }`. `force-dynamic`, NO auth,
+  NO DB round-trip (a Neon blip must not flap Railway deploy health). Verified: 200 + JSON, public.
+- `package.json`: renamed to `euclio`, `engines.node = "22.x"`, `start = next start -p ${PORT:-3000}`,
+  and `build = "prisma generate && next build"` — Railway must regenerate the gitignored Prisma client
+  at build (this closes the earlier postinstall/generate open thread). Local build verified green.
+- `railway.json` — RAILPACK builder, `startCommand npm run start`, `healthcheckPath /api/health`,
+  timeout 30, restart ON_FAILURE.
+- ⚠ Railway build needs `DIRECT_URL` present as a build env var (prisma.config.ts reads it during
+  `prisma generate`) — fold into the §10 env setup.
 
 ### Not started (rest of `docs/plans/m0-scaffold.md`)
-`/api/health` (§8), `railway.json` (§9), Railway deploy + prod env (§10). None need new migrations.
+Railway deploy + prod env (§10) — the only remaining M0 slice. Needs new migrations: no.
 
-### Single next slice (per plan §8)
-`app/api/health/route.ts` — public, no auth, no DB round-trip: `GET` returns `{ status: "ok",
-timestamp }`. Pure process-alive check for Railway's healthcheck. NOT credential-gated — pure code.
+### Single next slice (per plan §10) — the M0 finish line, credential/setup-gated
+Deploy to Railway: create a Railway project from the GitHub repo (or `railway up`), set ALL env vars
+on the service (incl. `DIRECT_URL` on the BUILD env for `prisma generate`, and `SENTRY_AUTH_TOKEN`/
+`ORG`/`PROJECT` for source maps), then `railway run npx prisma migrate deploy` once. Verify
+`<url>/api/health` → ok and a prod sign-up creates an Account. This is a user-driven setup step.
 
 ## Environment (this machine, 2026-07-27)
 - **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` + `@sentry/nextjs` present.
