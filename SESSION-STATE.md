@@ -39,14 +39,15 @@
 - ⚠ Railway build needs `DIRECT_URL` present as a build env var (prisma.config.ts reads it during
   `prisma generate`) — fold into the §10 env setup.
 
-### Not started (rest of `docs/plans/m0-scaffold.md`)
-Railway deploy + prod env (§10) — the only remaining M0 slice. Needs new migrations: no.
-
-### Single next slice (per plan §10) — the M0 finish line, credential/setup-gated
-Deploy to Railway: create a Railway project from the GitHub repo (or `railway up`), set ALL env vars
-on the service (incl. `DIRECT_URL` on the BUILD env for `prisma generate`, and `SENTRY_AUTH_TOKEN`/
-`ORG`/`PROJECT` for source maps), then `railway run npx prisma migrate deploy` once. Verify
-`<url>/api/health` → ok and a prod sign-up creates an Account. This is a user-driven setup step.
+### In progress — Railway deploy (plan §10)
+- Railway project **thorough-possibility**, env **production**, service **euclio**. Service deployed by user.
+- Sentry source-map tokens (`SENTRY_AUTH_TOKEN`/`ORG`/`PROJECT`) filled by user.
+- **`railway run npx prisma migrate deploy` run against production → "No pending migrations to apply."**
+  Confirms Railway uses the SAME shared Neon DB (`ep-flat-sound-awealxsh`) as local — the one-DB rule
+  holds — and the `init` schema is live in prod.
+- **Still to verify (§10 acceptance):** hit `<deployed-url>/api/health` → `{status:"ok"}`, and complete
+  a sign-up on the deployed URL → Account/User row created in prod. Clerk is still a DEV instance
+  (fine for now; production instance + Euclio-branded Google OAuth is a later open thread).
 
 ## Environment (this machine, 2026-07-27)
 - **Dependencies: installed** — Next + Prisma 7 + `@clerk/nextjs` + `@sentry/nextjs` present.
