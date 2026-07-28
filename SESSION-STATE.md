@@ -3,7 +3,8 @@
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`
 > (governing rules) and `docs/plans/m0-scaffold.md` (M0 build steps).
 > Last reconciled: 2026-07-27 (ping ingest — POST /api/ping/[token] — implemented,
-> build/lint-verified, and smoke-tested end to end against the real shared Neon DB).
+> build/lint-verified, smoke-tested end to end against the real shared Neon DB, and its
+> Sentry log delivery independently confirmed via the newly-connected Sentry MCP server).
 
 ## Milestone: M0 — deployable skeleton (auth + DB + Sentry + one page + health)
 
@@ -184,14 +185,13 @@ milestone — satisfied here by `Workflow.lastPingAt`, not `status` (ingest neve
   - Confirmed `Workflow.status` stayed `pending` throughout — ingest never touched it.
   - Dashboard: reloaded `/dashboard` in the browser (user-confirmed) — both the real ping
     URL and "Last ping" relative time render correctly for the pinged workflow.
-- **Not independently re-verified**: whether `logger.info("ping.received", ...)` /
-  `logger.warn("ping.rate_limited", ...)` actually reached Sentry. Attempted to check via
-  the Sentry API using the existing `SENTRY_AUTH_TOKEN`, but that token's scope is
-  `project:releases` (source-map upload only) — got a 403 attempting to read events/logs.
-  Same situation as the previous slice: treated as working by the same `lib/logger.ts`
-  convention already confirmed reaching Sentry for `account.created`/`client.created` in
-  earlier milestones, not independently re-proven this session. A token with broader read
-  scope (or checking the Sentry dashboard UI directly) would close this gap for real.
+- **Sentry log delivery — CONFIRMED** via the Sentry MCP server (connected + authenticated
+  this session, replacing the source-map-only `SENTRY_AUTH_TOKEN` that 403'd on event reads).
+  Queried the `logs` dataset in `euclio`/`dashboard` (`https://us.sentry.io`) directly:
+  `ping.received` (7 INFO entries, attributes = exactly `workflowId` + `pingId`, no token,
+  no payload — matches `lib/logger.ts`'s contract), `ping.rate_limited` (7 WARN entries),
+  plus `client.created`/`workflow.created`/`sentry.smoke_test` from earlier milestones all
+  present. This closes the gap flagged below for real — no longer inferred by convention.
 
 ## Environment — TWO machines now, tracked separately (this repeats going forward)
 
@@ -259,18 +259,16 @@ milestone — satisfied here by `Workflow.lastPingAt`, not `status` (ingest neve
 - [x] ~~Runtime-verify the add-client-workflow slice~~: done — signed in for real, created a
       Client + Workflow through the actual UI, confirmed `PENDING` status/interval/token
       render correctly. Cross-tenant rejection + `status`/token defaults verified directly
-      against the DB (throwaway rows, cleaned up). Sentry log delivery for the new
-      `client.created`/`workflow.created` calls specifically was NOT independently
-      re-checked via the Sentry API — inferred working from the same convention already
-      confirmed for `account.created` in M0, not re-proven this session.
+      against the DB (throwaway rows, cleaned up). Sentry log delivery for
+      `client.created`/`workflow.created` later confirmed directly (see Sentry MCP entry below).
 - [ ] **Multi-machine onboarding bootstrap** (still open, see Environment above): the manual
       Railway CLI + `railway variables` pull worked and unblocked this session, but isn't
       scripted yet. Worth turning into one command before a third machine needs onboarding.
 - [x] ~~Next slice: ping ingest~~: done, see the "Ping ingest" milestone above.
-- [ ] **Sentry log delivery for ping-ingest events not independently confirmed** (see the
-      Ping ingest milestone's verification notes) — the auth token on hand can't read
-      events back. Worth closing out with a broader-scoped token or a manual dashboard
-      check next time this area is touched.
+- [x] ~~Sentry log delivery for ping-ingest events not independently confirmed~~: closed —
+      connected + authenticated the Sentry MCP server, queried the `logs` dataset directly,
+      confirmed `ping.received`/`ping.rate_limited` (and earlier `client.created`/
+      `workflow.created`) all landed with clean attributes (no token/payload leakage).
 - [ ] Next slice: node-cron watcher (reconcile + debounce + dead-man's-switch), the step
       right after this one in the MVP loop. This is the first slice CLAUDE.md explicitly
       requires automated tests for ("the watcher (reconcile + debounce time-logic)") —
