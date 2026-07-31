@@ -40,6 +40,7 @@ enum PingKind {
 
 enum IncidentSource {
   heartbeat       // v1: a missed check-in
+  explicit_fail   // v1: /fail ping (immediate, no debounce)
   client_reported // reserved
   anomaly         // reserved
 }
@@ -140,6 +141,8 @@ model Incident {
   status     IncidentStatus @default(open)
   openedAt   DateTime       @default(now())
   resolvedAt DateTime?
+  errorText  String? // scrubbed error from /fail; freelancer-only; purged after 30 days
+  errorRedactedByServer Boolean @default(false) // flag: server-side redaction occurred
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
