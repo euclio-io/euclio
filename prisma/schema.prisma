@@ -109,6 +109,7 @@ model Workflow {
   graceMinutes            Int            @default(5)
   status                  WorkflowStatus @default(pending)
   lastPingAt              DateTime?
+  lastCheckedAt           DateTime? // watcher's last reconciliation pass; used for idempotency
   archivedAt              DateTime? // soft-delete
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt

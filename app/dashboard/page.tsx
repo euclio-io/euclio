@@ -6,6 +6,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { AddClientForm } from "./add-client-form";
 import { AddWorkflowForm } from "./add-workflow-form";
+import { SimulateFailureForm } from "./simulate-failure-form";
 
 /**
  * The freelancer's dashboard — and the M0 tenant-bootstrap resource.
@@ -86,6 +87,11 @@ export default async function DashboardPage() {
                           ? formatRelativeTime(workflow.lastPingAt)
                           : "never"}
                       </div>
+                      {workflow.status !== "down" && (
+                        <div className="mt-1">
+                          <SimulateFailureForm workflowId={workflow.id} />
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

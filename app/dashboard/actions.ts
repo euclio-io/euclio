@@ -81,3 +81,39 @@ export async function createWorkflow(_prev: ActionState, formData: FormData): Pr
   revalidatePath("/dashboard");
   return { error: null };
 }
+
+export async function simulateFailure(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const workflowId = String(formData.get("workflowId") ?? "");
+
+  // Ownership check: the workflow must belong to this account.
+  const workflow = await prisma.workflow.findFirst({
+    where: {
+      id: workflowId,
+      client: { accountId: account.id },
+      archivedAt: null,
+    },
+    select: { id: true, status: true },
+  });
+  if (!workflow) return { error: "Workflow not found." };
+  if (workflow.status === "down") return { error: "Workflow is already down." };
+
+  // Set lastPingAt to the past so the watcher sees it as overdue on the next run.
+  const now = new Date();
+  const pastTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
+
+  await prisma.workflow.update({
+    where: { id: workflowId },
+    data: { lastPingAt: pastTime },
+  });
+
+  logger.info("workflow.simulate_miss", {
+    accountId: account.id,
+    workflowId: workflowId,
+  });
+  revalidatePath("/dashboard");
+  return { error: null };
+}
