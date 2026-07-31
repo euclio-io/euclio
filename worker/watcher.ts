@@ -82,20 +82,20 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
       // No open incident. Apply debounce before opening one.
       if (overdueForMs >= DEBOUNCE_MS) {
         // Debounce satisfied — open a heartbeat incident.
-        await prisma.$transaction([
-          prisma.incident.create({
+        await prisma.$transaction(async (tx) => {
+          await tx.incident.create({
             data: {
               workflowId: workflow.id,
               source: "heartbeat",
               status: "open",
               openedAt: now,
             },
-          }),
-          prisma.workflow.update({
+          });
+          await tx.workflow.update({
             where: { id: workflow.id },
             data: { status: "down", lastCheckedAt: now },
-          }),
-        ]);
+          });
+        });
         logger.info("watcher.incident.opened", { workflowId: workflow.id });
       } else {
         // Within debounce window — stamp lastCheckedAt but don't open yet.
@@ -111,16 +111,16 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
       // Resolve the open heartbeat incident.
       // Only resolve if lastPingAt arrived after the incident opened.
       if (workflow.lastPingAt && workflow.lastPingAt > openIncident.openedAt) {
-        await prisma.$transaction([
-          prisma.incident.update({
+        await prisma.$transaction(async (tx) => {
+          await tx.incident.update({
             where: { id: openIncident.id },
             data: { status: "resolved", resolvedAt: now },
-          }),
-          prisma.workflow.update({
+          });
+          await tx.workflow.update({
             where: { id: workflow.id },
             data: { status: "healthy", lastCheckedAt: now },
-          }),
-        ]);
+          });
+        });
         logger.info("watcher.incident.resolved", {
           workflowId: workflow.id,
           incidentId: openIncident.id,
