@@ -201,7 +201,7 @@ describe("watcher reconciliation", () => {
     expect(incidents[0].status).toBe(IncidentStatus.open);
 
     // Step 2: ping arrives → incident resolves.
-    const recentPing = new Date(now.getTime() - 1 * 60 * 1000);
+    const recentPing = new Date(now.getTime() + 1000); // 1s after now, so lastPingAt > openedAt
     await prisma.workflow.update({
       where: { id: workflow.id },
       data: { lastPingAt: recentPing },
