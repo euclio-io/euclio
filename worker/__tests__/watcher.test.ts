@@ -129,23 +129,24 @@ describe("watcher reconciliation", () => {
     const workflow = await createTestWorkflow(clientId, "Recovery");
     const now = new Date();
 
-    // Create an open incident.
+    // Create an open incident from 10 minutes ago.
     const incident = await prisma.incident.create({
       data: {
         workflowId: workflow.id,
         source: "heartbeat",
         status: "open",
+        openedAt: new Date(now.getTime() - 10 * 60 * 1000),
       },
     });
 
-    // Set a recent ping (workflow is healthy).
+    // Set a recent ping (after incident opened, within the window).
     const recentPing = new Date(now.getTime() - 2 * 60 * 1000);
     await prisma.workflow.update({
       where: { id: workflow.id },
       data: { lastPingAt: recentPing, status: "down" },
     });
 
-    await reconcile();
+    await reconcile(now);
 
     const updated = await prisma.workflow.findUnique({ where: { id: workflow.id } });
     expect(updated?.status).toBe("healthy");
@@ -174,44 +175,69 @@ describe("watcher reconciliation", () => {
     expect(updated?.status).toBe("healthy");
   });
 
-  it("6. Explicit /fail opens incident immediately", async () => {
-    const workflow = await createTestWorkflow(clientId, "Explicit Fail");
-
-    await handleExplicitFail(workflow.id, "Test error", false);
-
-    const updated = await prisma.workflow.findUnique({ where: { id: workflow.id } });
-    expect(updated?.status).toBe("down");
-
-    const incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
-    expect(incidents).toHaveLength(1);
-    expect(incidents[0].source).toBe("explicit_fail");
-    expect(incidents[0].status).toBe("open");
-    expect(incidents[0].errorText).toBe("Test error");
-  });
-
-  it("7. Explicit /fail with re-fail suppression", async () => {
-    const workflow = await createTestWorkflow(clientId, "Re-fail Suppression");
+  it("8. Watcher does not resolve an explicit_fail incident", async () => {
+    const workflow = await createTestWorkflow(clientId, "Explicit Fail No Resolve");
     const now = new Date();
 
-    // Create a resolved explicit_fail incident from 1 hour ago.
-    const resolvedAt = new Date(now.getTime() - 60 * 60 * 1000);
-    await prisma.incident.create({
+    const incident = await prisma.incident.create({
       data: {
         workflowId: workflow.id,
         source: "explicit_fail",
-        status: "resolved",
-        resolvedAt,
-        createdAt: new Date(resolvedAt.getTime() - 10 * 60 * 1000),
+        status: "open",
+        openedAt: new Date(now.getTime() - 10 * 60 * 1000),
       },
     });
 
-    // Try to open a new explicit_fail incident.
-    await handleExplicitFail(workflow.id, "Re-fail error", false);
-
-    // Should be suppressed; no new incident created.
-    const incidents = await prisma.incident.findMany({
-      where: { workflowId: workflow.id, status: "open" },
+    // Recent ping — workflow is not overdue from heartbeat perspective.
+    await prisma.workflow.update({
+      where: { id: workflow.id },
+      data: {
+        lastPingAt: new Date(now.getTime() - 2 * 60 * 1000),
+        status: "down",
+      },
     });
-    expect(incidents).toHaveLength(0);
+
+    await reconcile(now);
+
+    const updatedIncident = await prisma.incident.findUnique({ where: { id: incident.id } });
+    expect(updatedIncident?.status).toBe("open");
+  });
+
+  it("9. Flapping creates one incident per sustained-down period", async () => {
+    const workflow = await createTestWorkflow(clientId, "Flapping", 5, 1);
+    const now = new Date();
+
+    // Step 1: overdue past debounce → incident opens.
+    const pastPing = new Date(now.getTime() - 10 * 60 * 1000);
+    await prisma.workflow.update({
+      where: { id: workflow.id },
+      data: { lastPingAt: pastPing },
+    });
+    await reconcile(now);
+
+    let incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
+    expect(incidents).toHaveLength(1);
+    expect(incidents[0].status).toBe("open");
+
+    // Step 2: ping arrives → incident resolves.
+    const recentPing = new Date(now.getTime() - 1 * 60 * 1000);
+    await prisma.workflow.update({
+      where: { id: workflow.id },
+      data: { lastPingAt: recentPing },
+    });
+    await reconcile(now);
+
+    incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
+    expect(incidents[0].status).toBe("resolved");
+
+    // Step 3: overdue again → second incident opens (new sustained-down period).
+    await prisma.workflow.update({
+      where: { id: workflow.id },
+      data: { lastPingAt: pastPing },
+    });
+    await reconcile(now);
+
+    incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
+    expect(incidents).toHaveLength(2);
   });
 });

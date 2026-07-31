@@ -96,18 +96,20 @@ export async function simulateFailure(_prev: ActionState, formData: FormData): P
       client: { accountId: account.id },
       archivedAt: null,
     },
-    select: { id: true, status: true },
+    select: { id: true, status: true, expectedIntervalMinutes: true, graceMinutes: true },
   });
   if (!workflow) return { error: "Workflow not found." };
   if (workflow.status === "down") return { error: "Workflow is already down." };
 
   // Set lastPingAt to the past so the watcher sees it as overdue on the next run.
-  const now = new Date();
-  const pastTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
+  // Use the plan formula: expectedInterval + grace + debounce + 1 minute buffer.
+  const DEBOUNCE_MINUTES = Number(process.env.WATCHER_DEBOUNCE_MINUTES ?? "2");
+  const overdueDuration =
+    (workflow.expectedIntervalMinutes + workflow.graceMinutes + DEBOUNCE_MINUTES + 1) * 60_000;
 
   await prisma.workflow.update({
     where: { id: workflowId },
-    data: { lastPingAt: pastTime },
+    data: { lastPingAt: new Date(Date.now() - overdueDuration) },
   });
 
   logger.info("workflow.simulate_miss", {

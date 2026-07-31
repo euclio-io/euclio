@@ -3,22 +3,19 @@
  *
  * Reconciliation: process every workflow overdue since the last check, idempotently.
  * Debounce: require a minimum sustained-down duration before opening an incident.
- * Re-fail suppression: on explicit /fail, don't re-open/re-alert if it re-fails
- *   within N hours of resolving.
+ *
+ * Invariants:
+ * - This is the ONLY writer of status=healthy and status=down for heartbeat incidents.
+ * - NEVER opens or resolves explicit_fail incidents — those are owned by the ingest path.
+ * - reconcile() is idempotent: running twice for the same `now` produces the same DB state.
  */
 
-import { Prisma } from "@/../generated/prisma";
+import { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-// Debounce window: require a workflow to be overdue for this long before opening an incident.
-const DEBOUNCE_MINUTES = Number(process.env.WATCHER_DEBOUNCE_MINUTES ?? 2);
+const DEBOUNCE_MINUTES = Number(process.env.WATCHER_DEBOUNCE_MINUTES ?? "2");
 const DEBOUNCE_MS = DEBOUNCE_MINUTES * 60 * 1000;
-
-// Re-fail suppression window: after resolving an explicit_fail incident, don't re-open
-// if it re-fails within this window.
-const REFAIL_SUPPRESSION_HOURS = 2;
-const REFAIL_SUPPRESSION_MS = REFAIL_SUPPRESSION_HOURS * 60 * 60 * 1000;
 
 type WatcherWorkflow = Prisma.WorkflowGetPayload<{
   include: {
@@ -30,12 +27,7 @@ type WatcherWorkflow = Prisma.WorkflowGetPayload<{
   };
 }>;
 
-/**
- * Main reconciliation pass: process every workflow overdue since the last check.
- * Idempotent: safe to call multiple times.
- */
 export async function reconcile(now: Date = new Date()): Promise<void> {
-  // Find all workflows that are not paused and not archived.
   const workflows = await prisma.workflow.findMany({
     where: {
       archivedAt: null,
@@ -53,175 +45,111 @@ export async function reconcile(now: Date = new Date()): Promise<void> {
   logger.info("watcher.reconcile.start", { workflowCount: workflows.length });
 
   for (const workflow of workflows) {
-    await processWorkflow(workflow, now);
+    try {
+      await processWorkflow(workflow, now);
+    } catch (err) {
+      // One bad workflow must never stall the loop.
+      logger.error("watcher.workflow.error", { workflowId: workflow.id, err });
+    }
   }
-
-  // Update the global last-checked timestamp for idempotency.
-  // (In a multi-watcher setup, this would be per-watcher; for now, it's global.)
-  // We don't actually use this yet, but it's here for future multi-watcher safety.
 
   logger.info("watcher.reconcile.end", { workflowCount: workflows.length });
 }
 
-/**
- * Process a single workflow: check if it's overdue, apply debounce, open/resolve incidents.
- */
 async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<void> {
   const expectedIntervalMs = workflow.expectedIntervalMinutes * 60 * 1000;
   const graceMs = workflow.graceMinutes * 60 * 1000;
   const windowMs = expectedIntervalMs + graceMs;
 
-  const lastPingAt = workflow.lastPingAt;
-  const isOverdue = lastPingAt ? now.getTime() - lastPingAt.getTime() > windowMs : true;
+  // Use createdAt as reference for never-pinged workflows (plan requirement).
+  const reference = workflow.lastPingAt ?? workflow.createdAt;
+  const overdueAt = new Date(reference.getTime() + windowMs);
+  const isOverdue = now >= overdueAt;
+  // Time since the workflow became overdue (negative = not yet overdue).
+  const overdueForMs = now.getTime() - overdueAt.getTime();
 
-  const openIncident = workflow.incidents[0] || null;
+  const openIncident = workflow.incidents[0] ?? null;
 
   if (isOverdue) {
-    // Workflow is overdue.
-    if (!openIncident) {
-      // No open incident yet. Check debounce: has it been overdue long enough?
-      const overdueFor = lastPingAt ? now.getTime() - lastPingAt.getTime() : Infinity;
-      if (overdueFor >= windowMs + DEBOUNCE_MS) {
-        // Debounce satisfied. Open an incident.
-        await prisma.incident.create({
-          data: {
-            workflowId: workflow.id,
-            source: "heartbeat",
-            status: "open",
-          },
-        });
-        await prisma.workflow.update({
-          where: { id: workflow.id },
-          data: { status: "down", lastCheckedAt: now },
-        });
-        logger.info("watcher.incident.opened", {
-          workflowId: workflow.id,
-          source: "heartbeat",
-        });
+    if (openIncident) {
+      // Already has an open incident (heartbeat or explicit_fail) — stamp and move on.
+      // Never re-open or re-alert.
+      await prisma.workflow.update({
+        where: { id: workflow.id },
+        data: { lastCheckedAt: now },
+      });
+    } else {
+      // No open incident. Apply debounce before opening one.
+      if (overdueForMs >= DEBOUNCE_MS) {
+        // Debounce satisfied — open a heartbeat incident.
+        await prisma.$transaction([
+          prisma.incident.create({
+            data: {
+              workflowId: workflow.id,
+              source: "heartbeat",
+              status: "open",
+              openedAt: now,
+            },
+          }),
+          prisma.workflow.update({
+            where: { id: workflow.id },
+            data: { status: "down", lastCheckedAt: now },
+          }),
+        ]);
+        logger.info("watcher.incident.opened", { workflowId: workflow.id });
       } else {
-        // Within debounce window — stamp lastCheckedAt but don't open incident yet.
+        // Within debounce window — stamp lastCheckedAt but don't open yet.
         await prisma.workflow.update({
           where: { id: workflow.id },
           data: { lastCheckedAt: now },
         });
       }
     }
-    // If an incident is already open, do nothing (no re-alert storm).
   } else {
-    // Workflow is NOT overdue (a ping arrived).
+    // Workflow is not overdue — a ping arrived within the window.
     if (openIncident && openIncident.source === "heartbeat") {
-      // An incident is open, but the workflow is healthy again. Resolve it.
-      // (Only resolve heartbeat incidents; explicit_fail incidents are never resolved by the watcher.)
-      await prisma.incident.update({
-        where: { id: openIncident.id },
-        data: {
-          status: "resolved",
-          resolvedAt: now,
-        },
-      });
-      await prisma.workflow.update({
-        where: { id: workflow.id },
-        data: { status: "healthy", lastCheckedAt: now },
-      });
-      logger.info("watcher.incident.resolved", {
-        workflowId: workflow.id,
-        incidentId: openIncident.id,
-      });
-    } else if (workflow.status === "pending") {
-      // First ping received; mark as healthy.
-      await prisma.workflow.update({
-        where: { id: workflow.id },
-        data: { status: "healthy", lastCheckedAt: now },
-      });
-      logger.info("watcher.workflow.healthy", { workflowId: workflow.id });
+      // Resolve the open heartbeat incident.
+      // Only resolve if lastPingAt arrived after the incident opened.
+      if (workflow.lastPingAt && workflow.lastPingAt > openIncident.openedAt) {
+        await prisma.$transaction([
+          prisma.incident.update({
+            where: { id: openIncident.id },
+            data: { status: "resolved", resolvedAt: now },
+          }),
+          prisma.workflow.update({
+            where: { id: workflow.id },
+            data: { status: "healthy", lastCheckedAt: now },
+          }),
+        ]);
+        logger.info("watcher.incident.resolved", {
+          workflowId: workflow.id,
+          incidentId: openIncident.id,
+        });
+      } else {
+        await prisma.workflow.update({
+          where: { id: workflow.id },
+          data: { lastCheckedAt: now },
+        });
+      }
     } else {
-      // Workflow is healthy and has an open incident or is already healthy; stamp lastCheckedAt.
+      // No open heartbeat incident. Ensure status is correct.
+      // Handles: first ping (pending→healthy), stuck-down with no open incident,
+      // and the steady-state healthy stamp.
+      const newStatus =
+        workflow.status === "pending" || workflow.status === "down"
+          ? "healthy"
+          : workflow.status;
       await prisma.workflow.update({
         where: { id: workflow.id },
-        data: { lastCheckedAt: now },
+        data: { status: newStatus, lastCheckedAt: now },
       });
+      if (workflow.status !== newStatus) {
+        logger.info("watcher.workflow.status_corrected", {
+          workflowId: workflow.id,
+          from: workflow.status,
+          to: newStatus,
+        });
+      }
     }
   }
-}
-
-/**
- * Called by the ingest path when a /fail ping arrives.
- * Opens an incident immediately (no debounce), with re-fail suppression.
- */
-export async function handleExplicitFail(
-  workflowId: string,
-  errorText: string | null,
-  errorRedactedByServer: boolean,
-): Promise<void> {
-  const now = new Date();
-
-  // Check if there's a recently-resolved explicit_fail incident.
-  // If so, and it's within the suppression window, don't re-open.
-  const recentResolved = await prisma.incident.findFirst({
-    where: {
-      workflowId,
-      source: "explicit_fail",
-      status: "resolved",
-      resolvedAt: {
-        gte: new Date(now.getTime() - REFAIL_SUPPRESSION_MS),
-      },
-    },
-    orderBy: { resolvedAt: "desc" },
-  });
-
-  if (recentResolved) {
-    logger.info("watcher.explicit_fail.suppressed", {
-      workflowId,
-      suppressedIncidentId: recentResolved.id,
-    });
-    return;
-  }
-
-  // Check if there's already an open explicit_fail incident.
-  // If so, just update the errorText (don't re-alert).
-  const openIncident = await prisma.incident.findFirst({
-    where: {
-      workflowId,
-      source: "explicit_fail",
-      status: "open",
-    },
-  });
-
-  if (openIncident) {
-    // Update the error text (latest failure wins).
-    await prisma.incident.update({
-      where: { id: openIncident.id },
-      data: {
-        errorText,
-        errorRedactedByServer,
-      },
-    });
-    logger.info("watcher.explicit_fail.updated", {
-      workflowId,
-      incidentId: openIncident.id,
-    });
-    return;
-  }
-
-  // No open incident. Create one.
-  const incident = await prisma.incident.create({
-    data: {
-      workflowId,
-      source: "explicit_fail",
-      status: "open",
-      errorText,
-      errorRedactedByServer,
-    },
-  });
-
-  // Mark the workflow as down.
-  await prisma.workflow.update({
-    where: { id: workflowId },
-    data: { status: "down" },
-  });
-
-  logger.info("watcher.explicit_fail.opened", {
-    workflowId,
-    incidentId: incident.id,
-  });
 }
