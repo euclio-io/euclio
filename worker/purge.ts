@@ -16,11 +16,12 @@ export async function purgeOldErrorText(): Promise<void> {
 
   const result = await prisma.incident.updateMany({
     where: {
-      createdAt: { lt: cutoff },
+      openedAt: { lt: cutoff },
       errorText: { not: null },
     },
     data: {
       errorText: null,
+      errorRedactedByServer: false,
     },
   });
 

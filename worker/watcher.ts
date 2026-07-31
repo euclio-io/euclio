@@ -94,7 +94,7 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
         });
         await prisma.workflow.update({
           where: { id: workflow.id },
-          data: { status: "down" },
+          data: { status: "down", lastCheckedAt: now },
         });
         logger.info("watcher.incident.opened", {
           workflowId: workflow.id,
@@ -116,7 +116,7 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
       });
       await prisma.workflow.update({
         where: { id: workflow.id },
-        data: { status: "healthy" },
+        data: { status: "healthy", lastCheckedAt: now },
       });
       logger.info("watcher.incident.resolved", {
         workflowId: workflow.id,
@@ -126,9 +126,15 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
       // First ping received; mark as healthy.
       await prisma.workflow.update({
         where: { id: workflow.id },
-        data: { status: "healthy" },
+        data: { status: "healthy", lastCheckedAt: now },
       });
       logger.info("watcher.workflow.healthy", { workflowId: workflow.id });
+    } else {
+      // Workflow is healthy and has an open incident or is already healthy; stamp lastCheckedAt.
+      await prisma.workflow.update({
+        where: { id: workflow.id },
+        data: { lastCheckedAt: now },
+      });
     }
   }
 }

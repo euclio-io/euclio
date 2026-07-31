@@ -53,7 +53,7 @@ describe("nightly purge", () => {
         source: "explicit_fail",
         status: "resolved",
         errorText: "Old error",
-        createdAt: oldDate,
+        openedAt: oldDate,
       },
     });
 
@@ -73,7 +73,7 @@ describe("nightly purge", () => {
         source: "explicit_fail",
         status: "resolved",
         errorText: "Recent error",
-        createdAt: recentDate,
+        openedAt: recentDate,
       },
     });
 
