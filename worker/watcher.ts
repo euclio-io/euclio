@@ -34,9 +34,7 @@ type WatcherWorkflow = Prisma.WorkflowGetPayload<{
  * Main reconciliation pass: process every workflow overdue since the last check.
  * Idempotent: safe to call multiple times.
  */
-export async function reconcile(): Promise<void> {
-  const now = new Date();
-
+export async function reconcile(now: Date = new Date()): Promise<void> {
   // Find all workflows that are not paused and not archived.
   const workflows = await prisma.workflow.findMany({
     where: {
@@ -83,7 +81,7 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
     if (!openIncident) {
       // No open incident yet. Check debounce: has it been overdue long enough?
       const overdueFor = lastPingAt ? now.getTime() - lastPingAt.getTime() : Infinity;
-      if (overdueFor >= DEBOUNCE_MS) {
+      if (overdueFor >= windowMs + DEBOUNCE_MS) {
         // Debounce satisfied. Open an incident.
         await prisma.incident.create({
           data: {
@@ -105,8 +103,9 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
     // If an incident is already open, do nothing (no re-alert storm).
   } else {
     // Workflow is NOT overdue (a ping arrived).
-    if (openIncident) {
+    if (openIncident && openIncident.source === "heartbeat") {
       // An incident is open, but the workflow is healthy again. Resolve it.
+      // (Only resolve heartbeat incidents; explicit_fail incidents are never resolved by the watcher.)
       await prisma.incident.update({
         where: { id: openIncident.id },
         data: {

@@ -57,7 +57,7 @@ describe("nightly purge", () => {
       },
     });
 
-    await purgeOldErrorText();
+    await purgeOldErrorText(now);
 
     const updated = await prisma.incident.findUnique({ where: { id: incident.id } });
     expect(updated?.errorText).toBeNull();
@@ -77,7 +77,7 @@ describe("nightly purge", () => {
       },
     });
 
-    await purgeOldErrorText();
+    await purgeOldErrorText(now);
 
     const updated = await prisma.incident.findUnique({ where: { id: incident.id } });
     expect(updated?.errorText).toBe("Recent error");

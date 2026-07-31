@@ -10,8 +10,7 @@ import { logger } from "@/lib/logger";
 
 const ERROR_TEXT_TTL_DAYS = 30;
 
-export async function purgeOldErrorText(): Promise<void> {
-  const now = new Date();
+export async function purgeOldErrorText(now: Date = new Date()): Promise<void> {
   const cutoff = new Date(now.getTime() - ERROR_TEXT_TTL_DAYS * 24 * 60 * 60 * 1000);
 
   const result = await prisma.incident.updateMany({
