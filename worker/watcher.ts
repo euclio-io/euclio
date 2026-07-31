@@ -10,7 +10,7 @@
  * - reconcile() is idempotent: running twice for the same `now` produces the same DB state.
  */
 
-import { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 

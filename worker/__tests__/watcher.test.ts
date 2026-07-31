@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { IncidentSource, IncidentStatus, WorkflowStatus } from "@/generated/prisma";
+import { IncidentSource, IncidentStatus, WorkflowStatus } from "@/generated/prisma/enums";
 import { reconcile } from "../watcher";
 
 async function createTestWorkflow(
