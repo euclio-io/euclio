@@ -98,6 +98,12 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
           workflowId: workflow.id,
           source: "heartbeat",
         });
+      } else {
+        // Within debounce window — stamp lastCheckedAt but don't open incident yet.
+        await prisma.workflow.update({
+          where: { id: workflow.id },
+          data: { lastCheckedAt: now },
+        });
       }
     }
     // If an incident is already open, do nothing (no re-alert storm).
