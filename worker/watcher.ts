@@ -1,18 +1,21 @@
 /**
- * Euclio watcher reconciliation logic — M3 slice.
+ * Euclio watcher reconciliation logic — M3/M4 slice.
  *
  * Reconciliation: process every workflow overdue since the last check, idempotently.
  * Debounce: require a minimum sustained-down duration before opening an incident.
+ * Alert: send one email per incident on open; retry unalerted open incidents each tick.
  *
  * Invariants:
  * - This is the ONLY writer of status=healthy and status=down for heartbeat incidents.
  * - NEVER opens or resolves explicit_fail incidents — those are owned by the ingest path.
  * - reconcile() is idempotent: running twice for the same `now` produces the same DB state.
+ * - Alert failures never abort the reconcile loop (wrapped, logged, retried next tick).
  */
 
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { sendIncidentAlert } from "@/lib/mailer";
 
 const DEBOUNCE_MINUTES = Number(process.env.WATCHER_DEBOUNCE_MINUTES ?? "2");
 const DEBOUNCE_MS = DEBOUNCE_MINUTES * 60 * 1000;
@@ -73,30 +76,42 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
   if (isOverdue) {
     if (openIncident) {
       // Already has an open incident (heartbeat or explicit_fail) — stamp and move on.
-      // Never re-open or re-alert.
+      // Never re-open or re-alert for the same incident.
       await prisma.workflow.update({
         where: { id: workflow.id },
         data: { lastCheckedAt: now },
       });
+
+      // Retry alert if it hasn't been sent yet (e.g. previous send failed, or
+      // this is an explicit_fail incident opened by the ingest path).
+      await maybeAlert(openIncident.id, openIncident.alertedAt, now);
     } else {
       // No open incident. Apply debounce before opening one.
       if (overdueForMs >= DEBOUNCE_MS) {
         // Debounce satisfied — open a heartbeat incident.
+        let newIncidentId: string | null = null;
         await prisma.$transaction(async (tx) => {
-          await tx.incident.create({
+          const incident = await tx.incident.create({
             data: {
               workflowId: workflow.id,
               source: "heartbeat",
               status: "open",
               openedAt: now,
             },
+            select: { id: true },
           });
+          newIncidentId = incident.id;
           await tx.workflow.update({
             where: { id: workflow.id },
             data: { status: "down", lastCheckedAt: now },
           });
         });
         logger.info("watcher.incident.opened", { workflowId: workflow.id });
+
+        // Send alert for the newly opened incident.
+        if (newIncidentId) {
+          await maybeAlert(newIncidentId, null, now);
+        }
       } else {
         // Within debounce window — stamp lastCheckedAt but don't open yet.
         await prisma.workflow.update({
@@ -151,5 +166,39 @@ async function processWorkflow(workflow: WatcherWorkflow, now: Date): Promise<vo
         });
       }
     }
+  }
+}
+
+/**
+ * Send an alert for the given incident if it hasn't been alerted yet.
+ * Stamps alertedAt on success. On failure, logs and continues — the next
+ * reconcile tick will retry (alertedAt remains null).
+ * Never throws.
+ */
+async function maybeAlert(
+  incidentId: string,
+  alertedAt: Date | null,
+  now: Date,
+): Promise<void> {
+  if (alertedAt !== null) {
+    // Already alerted — idempotency guard.
+    return;
+  }
+
+  try {
+    const result = await sendIncidentAlert(incidentId);
+    if (result.sent) {
+      await prisma.incident.update({
+        where: { id: incidentId },
+        data: { alertedAt: now },
+      });
+      logger.info("watcher.alert.sent", { incidentId });
+    } else {
+      // Send failed — log it; alertedAt stays null so next tick retries.
+      logger.warn("watcher.alert.failed", { incidentId, error: result.error });
+    }
+  } catch (err) {
+    // sendIncidentAlert should never throw, but be defensive.
+    logger.error("watcher.alert.threw", { incidentId, err });
   }
 }

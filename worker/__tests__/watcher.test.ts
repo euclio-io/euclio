@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { IncidentSource, IncidentStatus, WorkflowStatus } from "@/generated/prisma/enums";
 import { reconcile } from "../watcher";
+
+// Mock sendIncidentAlert: watcher tests don't test alerting (that's alert.test.ts).
+// Without this, reconcile() would try to call Resend on every incident open.
+vi.mock("@/lib/mailer", () => ({
+  sendIncidentAlert: vi.fn().mockResolvedValue({ sent: true }),
+}));
 
 async function createTestWorkflow(
   clientId: string,

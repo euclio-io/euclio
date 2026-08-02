@@ -10,6 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { scrub } from "@/lib/scrub";
+import { sendIncidentAlert } from "@/lib/mailer";
 import { checkRateLimit } from "../rate-limit";
 import { readCappedBody, PayloadTooLargeError } from "../read-capped-body";
 
@@ -129,6 +130,27 @@ export async function POST(
       workflowId: workflow.id,
       incidentId: incident.id,
     });
+
+    // Send alert for the newly opened incident. Wrapped — never breaks ingest.
+    try {
+      const alertResult = await sendIncidentAlert(incident.id);
+      if (alertResult.sent) {
+        await prisma.incident.update({
+          where: { id: incident.id },
+          data: { alertedAt: now },
+        });
+        logger.info("ping.fail_alert_sent", { incidentId: incident.id });
+      } else {
+        // Alert failed — watcher will retry on next tick (alertedAt stays null).
+        logger.warn("ping.fail_alert_failed", {
+          incidentId: incident.id,
+          error: alertResult.error,
+        });
+      }
+    } catch (err) {
+      // sendIncidentAlert should never throw, but be defensive.
+      logger.error("ping.fail_alert_threw", { incidentId: incident.id, err });
+    }
   }
 
   return Response.json({

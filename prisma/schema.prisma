@@ -144,6 +144,7 @@ model Incident {
   resolvedAt DateTime?
   errorText  String? // scrubbed error from /fail; freelancer-only; purged after 30 days
   errorRedactedByServer Boolean @default(false) // flag: server-side redaction occurred
+  alertedAt  DateTime? // set when the alert email is sent; idempotency guard
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 

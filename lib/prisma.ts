@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-import logger from "./logger";
+import { PrismaClient } from "@/generated/prisma/client";
+import { logger } from "./logger";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // The running app's Prisma client. Independent of prisma.config.ts (which is
@@ -21,7 +21,7 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 
 // by minting a new PrismaClient on every module reload.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
-prisma.$on('error', (e) => {
-  logger.error(`Prisma error: ${e.message}`);
-});
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+// Log a startup message so we know the client was initialised.
+logger.info("prisma.client.init");
