@@ -1,4 +1,5 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
+import logger from "./logger";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 // The running app's Prisma client. Independent of prisma.config.ts (which is
@@ -10,10 +11,17 @@ import { PrismaPg } from "@prisma/adapter-pg";
 // limit for no benefit.
 // First arg is a pg.PoolConfig — connectionString and `max` both live here.
 // (The optional second arg is Prisma-specific, e.g. `schema`, and has no `max`.)
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
+
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 5 });
 
 // Reuse one client across hot-reloads in dev, so we don't exhaust connections
 // by minting a new PrismaClient on every module reload.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+prisma.$on('error', (e) => {
+  logger.error(`Prisma error: ${e.message}`);
+});
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
