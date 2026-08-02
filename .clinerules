@@ -1,0 +1,63 @@
+# Euclio — Cline rules
+
+## What this project is
+Workflow/heartbeat monitoring SaaS for freelancers: clients → workflows →
+ping ingest → watcher opens/resolves incidents → (later) alerts + client-facing
+status. Modular monolith: Next.js web service + separate watcher worker,
+same repo, deployed as two Railway services sharing one Neon Postgres DB.
+
+## Stack
+- Next.js 16 (App Router), React 19, Tailwind 4
+- Prisma 7, client generator with output ./generated/prisma
+  - enums: import from "@/generated/prisma/enums"
+  - Prisma types: import from "@/generated/prisma/client"
+- Clerk (auth, DEV instance), Sentry (logging via lib/logger.ts), pg adapter
+- Node 22 via nvm (.nvmrc) — shells start on system Node; run `nvm use` before
+  any node/npm/prisma command
+- Tests: vitest, config in vitest.config.mts (loads .env.local via
+  vitest.setup.ts, uses vite-tsconfig-paths). Tests hit the real Neon DB.
+- Worker entry: worker/index.ts (node-cron), started with `npm run worker`
+
+## Hard invariants — never violate, flag if a change would
+1. Tenant boundary: ownership checks live INSIDE the Prisma query
+   (client: { accountId: account.id } in the where clause). Never a
+   follow-up JS equality check. Highest-severity review gate.
+2. The watcher (worker/watcher.ts) is the ONLY writer of Workflow.status
+   healthy/down for heartbeat incidents. Ingest routes only write lastPingAt.
+3. The watcher NEVER opens or resolves explicit_fail incidents — those are
+   owned by /api/ping/[token]/fail exclusively.
+4. Incident rows are never deleted. The nightly purge only NULLs errorText
+   (and resets errorRedactedByServer). The fact outlives the data.
+5. No PII, tokens, or payloads in logger calls — IDs and counts only.
+6. Workflow.status defaults to "pending" on create — never set it in
+   create paths.
+7. Error text is scrubbed (lib/scrub.ts: truncate-first, then pattern-redact)
+   before storage. Never store raw error bodies.
+
+## Conventions
+- Server actions pattern: auth() check → redirect if no user →
+  getOrCreateAccountForCurrentUser() → ownership-scoped query → mutate →
+  logger.info with IDs → revalidatePath("/dashboard").
+- Forms: useActionState client components, role="alert" for errors, no toast libs.
+- Ping routes: rate-limit → readCappedBody (2KB) → validate → transact.
+  GET delegates to POST.
+- New env vars go in .env.example with a comment block.
+- Schema changes require: edit schema.prisma → npx prisma migrate dev →
+  npx prisma generate (client is NOT auto-regenerated; forgetting this
+  causes "Invalid value for argument" / "column does not exist" errors).
+- Dev and prod share ONE Neon DB. Be careful with destructive commands and
+  test cleanup — always scope deleteMany with a where clause, never global.
+
+## Session workflow
+- At the start of a task, read SESSION-STATE.md for current milestone state.
+  Full history lives in docs/session-history.md — don't read it unless asked.
+- Implementation plans live in docs/plans/ (e.g. m3-watcher.md). When
+  implementing a milestone, validate each change against its plan.
+- When a slice is complete (tests pass, verified), update SESSION-STATE.md:
+  move the milestone to done (one line), update open threads and next slice.
+- Run `npm test` after changes to worker/ or lib/scrub.ts. Don't claim
+  something works without running the relevant check.
+
+## Do NOT build (out of MVP scope unless explicitly asked)
+Email/alerting, client-facing pages, billing, multi-user accounts,
+anomaly detection. Check SESSION-STATE.md's skip list before adding scope.

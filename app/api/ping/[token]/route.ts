@@ -11,6 +11,15 @@ import { readCappedBody, PayloadTooLargeError } from "./read-capped-body";
 // long-lived Node process, not per-request isolates.
 export const runtime = "nodejs";
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ token: string }> },
+) {
+  // GET delegates to POST for convenience (removes a whole class of "which method?"
+  // setup mistakes in platform integrations and copy-paste snippets).
+  return POST(request, { params });
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ token: string }> },
