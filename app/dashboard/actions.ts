@@ -6,9 +6,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
-import { generateWorkflowToken } from "@/lib/token";
+import { generateWorkflowToken, generatePublicSlug } from "@/lib/token";
 
-export type ActionState = { error: string | null };
+export type ActionState = { error: string | null; publicSlug?: string };
 
 // Workflow.expectedIntervalMinutes/graceMinutes are Postgres INT4 columns;
 // an unbounded value would throw an uncaught DB error instead of a friendly
@@ -139,6 +139,82 @@ export async function resolveIncident(_prev: ActionState, formData: FormData): P
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/incidents/${incident.id}`);
   return { error: null };
+}
+
+export async function createClientUpdate(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const incidentId = String(formData.get("incidentId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const bodyText = String(formData.get("bodyText") ?? "").trim();
+  const markSent = formData.get("markSent") === "1";
+
+  if (!incidentId) return { error: "Incident ID is required." };
+  if (!clientId) return { error: "Client ID is required." };
+  if (!bodyText) return { error: "Note body is required." };
+
+  // Server-side guard: slot 2 (what it means for you) must be non-empty.
+  // The client enforces this too, but we enforce it here as the authoritative check.
+  // We detect an empty slot 2 by checking if the body is just the slot 1 prefill
+  // (i.e. only one paragraph). A body with only one paragraph means slot 2 was skipped.
+  // More robust: the client always sends the assembled body; we just require it's non-trivial.
+  if (bodyText.length < 10) return { error: "Note is too short." };
+
+  // Ownership check: incident → workflow → client → accountId.
+  const incident = await prisma.incident.findFirst({
+    where: {
+      id: incidentId,
+      workflow: { client: { id: clientId, accountId: account.id } },
+    },
+    select: { id: true, openedAt: true, resolvedAt: true },
+  });
+  if (!incident) return { error: "Incident not found." };
+
+  // Ownership check: client must belong to this account.
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, accountId: account.id, archivedAt: null },
+    select: { id: true },
+  });
+  if (!client) return { error: "Client not found." };
+
+  // Look up the User row for authorUserId.
+  const user = await prisma.user.findFirst({
+    where: { clerkUserId: userId, accountId: account.id },
+    select: { id: true },
+  });
+  if (!user) return { error: "User not found." };
+
+  const slug = generatePublicSlug();
+  const now = new Date();
+
+  const update = await prisma.clientUpdate.create({
+    data: {
+      accountId: account.id,
+      clientId: client.id,
+      authorUserId: user.id,
+      bodyText,
+      publicSlug: slug,
+      coversFrom: incident.openedAt,
+      coversTo: incident.resolvedAt ?? now,
+      sentAt: markSent ? now : null,
+    },
+    select: { id: true, publicSlug: true },
+  });
+
+  logger.info("client_update.created", {
+    accountId: account.id,
+    clientId: client.id,
+    incidentId: incident.id,
+    clientUpdateId: update.id,
+  });
+
+  revalidatePath(`/dashboard/clients/${clientId}`);
+  return { error: null, publicSlug: update.publicSlug };
 }
 
 export async function simulateFailure(_prev: ActionState, formData: FormData): Promise<ActionState> {

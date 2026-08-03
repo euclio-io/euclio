@@ -98,16 +98,50 @@ export default async function DashboardPage() {
                 borderBottom: "1px solid var(--hair)",
               }}
             >
-              <h3
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: "17px",
-                  fontWeight: 500,
-                  marginBottom: "12px",
-                }}
-              >
-                {client.name}
-              </h3>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "12px", marginBottom: "12px" }}>
+                <h3
+                  style={{
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "17px",
+                    fontWeight: 500,
+                  }}
+                >
+                  <Link
+                    href={`/dashboard/clients/${client.id}`}
+                    style={{ color: "var(--ink)", textDecoration: "none" }}
+                  >
+                    {client.name}
+                  </Link>
+                </h3>
+                {/* All-green status: no down workflows */}
+                {client.workflows.every((w) => w.status !== "down") &&
+                  client.workflows.length > 0 && (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "9px",
+                        letterSpacing: ".08em",
+                        textTransform: "uppercase",
+                        color: "var(--green)",
+                      }}
+                    >
+                      all clear
+                    </span>
+                  )}
+                <Link
+                  href={`/dashboard/clients/${client.id}`}
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "9px",
+                    letterSpacing: ".06em",
+                    textTransform: "uppercase",
+                    color: "var(--ink-2)",
+                    textDecoration: "none",
+                  }}
+                >
+                  ledger →
+                </Link>
+              </div>
 
               {client.workflows.length === 0 ? (
                 <p style={{ fontSize: "13px", color: "var(--ink-2)", marginBottom: "12px" }}>

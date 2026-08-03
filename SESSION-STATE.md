@@ -1,7 +1,7 @@
 # Euclio — Session State
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`.
-> Last reconciled: 2026-08-03 (M5: facts + note view complete).
+> Last reconciled: 2026-08-03 (M5.5: ledger + answer view complete).
 
 ## Milestone summary
 
@@ -11,6 +11,7 @@
 - **M3 watcher** — DONE. `worker/index.ts`, `worker/watcher.ts`, `worker/purge.ts`, `worker/deadmans.ts` with reconciliation-based heartbeat monitoring, debounce (2 min default), dead-man's-switch ping, and nightly purge. Simulate failure action in dashboard. Full test coverage in `worker/__tests__/`.
 - **M4 alert email** — DONE. `lib/mailer.ts` (Resend wrapper, degrades gracefully on missing key). `Incident.alertedAt` column added (migration `20260802230145_add_incident_alerted_at`). Alert wired into watcher (heartbeat open + retry on each tick for unalerted open incidents) and `/fail` route (explicit_fail open). Idempotent per incident via `alertedAt`. Email content: facts only — client name, workflow name, "missed check-in at <time>" or "reported a failure at <time>", dashboard link. No errorText, no severity words. 14/14 tests pass (`worker/__tests__/alert.test.ts` + existing suites).
 - **M5 facts + note view** — DONE. `lib/facts.ts` (pure function, both fact shapes, timezone-aware, zero deps). `lib/__tests__/facts.test.ts` (102 tests: both shapes, duration formatting, timezone, banned words × 4 fixtures, structural firewall). Incident detail page at `/dashboard/incidents/[id]`: facts lines, event timeline, freelancer-only diagnostic panel (errorText, amber border, "redacted · ttl 30d"), mark-resolved form with optional note, simulate-failure still works. Dashboard updated with incident links (amber "View incident →" on down workflows). Design system adopted globally: Spectral/Instrument Sans/IBM Plex Mono fonts, paper/lift/rail/ink/amber/green/hair tokens in `globals.css`. `resolveIncident` server action added to `actions.ts`.
+- **M5.5 ledger + answer view** — DONE. Per-client ledger at `/dashboard/clients/[id]`: summary figures (incidents/30d, check-ins/30d, longest quiet run), month-grouped incident cards with facts lines + notes, all-green banner for quiet clients. Compose flow at `/dashboard/clients/[id]/compose/[incidentId]`: four-slot scaffold (slot 1 pre-filled from facts, slot 2 mandatory-empty, slot 3 optional, slot 4 defaults to "Nothing — just keeping you in the loop."), plain-text preview, copy-to-clipboard + mark-sent. `createClientUpdate` server action (ownership-scoped, `generatePublicSlug()`, `coversFrom/To` from incident). No-login receipt page at `/u/[publicSlug]`: plain text body + minimal footer, no Euclio branding. Dashboard home updated with client ledger links + "all clear" status badge. TypeScript clean (tsc --noEmit exit 0). No schema changes.
 
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
