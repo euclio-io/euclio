@@ -58,12 +58,42 @@ export default async function ComposePage({
   const slot1Prefill = factLines.join("\n");
 
   return (
-    <ComposeForm
-      clientId={clientId}
-      clientName={clientName}
-      incidentId={incidentId}
-      workflowName={workflowName}
-      slot1Prefill={slot1Prefill}
-    />
+    <div style={{ padding: "30px 44px 0", minWidth: 0 }}>
+      {/* Breadcrumb */}
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: "9.5px",
+          letterSpacing: ".1em",
+          textTransform: "uppercase",
+          color: "var(--ink-2)",
+          marginBottom: "8px",
+        }}
+      >
+        <a href="/dashboard" style={{ color: "var(--ink-2)", textDecoration: "none" }}>Clients</a>
+        {" / "}
+        <a href={`/dashboard/clients/${clientId}`} style={{ color: "var(--ink-2)", textDecoration: "none" }}>{clientName}</a>
+        {" / "}
+        Compose
+      </div>
+      <h1
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "25px",
+          fontWeight: 500,
+          letterSpacing: "-.005em",
+          marginBottom: "22px",
+        }}
+      >
+        Client note
+      </h1>
+      <ComposeForm
+        clientId={clientId}
+        clientName={clientName}
+        incidentId={incidentId}
+        workflowName={workflowName}
+        slot1Prefill={slot1Prefill}
+      />
+    </div>
   );
 }

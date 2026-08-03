@@ -125,9 +125,8 @@ export default async function IncidentDetailPage({
 
   const s = {
     page: {
-      maxWidth: "760px",
-      margin: "0 auto",
-      padding: "32px 24px 64px",
+      padding: "30px 44px 64px",
+      minWidth: 0,
       fontFamily: "var(--font-sans)",
       color: "var(--ink)",
     } as React.CSSProperties,

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { SignOutButton } from "@clerk/nextjs";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 
@@ -143,21 +144,53 @@ export default async function DashboardLayout({
           );
         })}
 
+        {/* Add client button */}
+        <Link
+          href="/dashboard/clients/new"
+          title="Add client"
+          style={{
+            width: "28px",
+            height: "28px",
+            borderRadius: "50%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-mono)",
+            fontSize: "16px",
+            color: "var(--rail-muted)",
+            textDecoration: "none",
+            border: "1px dashed rgba(246,242,233,.2)",
+            marginTop: "4px",
+          }}
+        >
+          +
+        </Link>
+
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Gear (settings placeholder) */}
-        <div
-          style={{
-            color: "var(--rail-muted)",
-            fontSize: "14px",
-            marginBottom: "12px",
-            cursor: "default",
-          }}
-          title="Settings (coming soon)"
-        >
-          ⚙
-        </div>
+        {/* Logout */}
+        <SignOutButton redirectUrl="/sign-in">
+          <button
+            title="Sign out"
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--rail-muted)",
+              fontSize: "13px",
+              marginBottom: "8px",
+            }}
+          >
+            ↪
+          </button>
+        </SignOutButton>
 
         {/* User avatar */}
         <div

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
 import { formatRelativeTime } from "@/lib/format-relative-time";
-import { AddClientForm } from "./add-client-form";
 
 /**
  * Home — "Clients" view.
@@ -142,7 +141,19 @@ export default async function DashboardPage() {
           >
             Last 30 days
           </span>
-          <AddClientForm inline />
+          <Link
+            href="/dashboard/clients/new"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "9px",
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+              color: "var(--pine)",
+              textDecoration: "none",
+            }}
+          >
+            + add client
+          </Link>
         </div>
       </div>
 
@@ -433,7 +444,19 @@ export default async function DashboardPage() {
 
       {/* ── Add client (bottom, subtle) ── */}
       <div style={{ padding: "24px 0 40px" }}>
-        <AddClientForm />
+        <Link
+          href="/dashboard/clients/new"
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "9px",
+            letterSpacing: ".08em",
+            textTransform: "uppercase",
+            color: "var(--ink-2)",
+            textDecoration: "none",
+          }}
+        >
+          + add client →
+        </Link>
       </div>
 
     </div>
