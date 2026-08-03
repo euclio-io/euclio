@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Euclio — Northgate Dental · Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F1EA; --lift:#FBFAF7; --rail:#1E362B; --rail-2:#24402F;
+    --rail-text:#F6F2E9; --rail-muted:rgba(246,242,233,.45);
+    --ink:#243329; --ink-2:#66756B; --pine:#1E362B; --green:#2F6B4A;
+    --amber:#B0852E; --amber-deep:#8A6423;
+    --hair:rgba(36,51,41,.12); --hair-2:rgba(36,51,41,.055);
+    --serif:'Spectral',serif; --sans:'Instrument Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;}
+  body{background:#E8E5DD;font-family:var(--sans);color:var(--ink);padding:40px;
+       display:flex;justify-content:center;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+  .app{width:1180px;height:800px;background:var(--paper);border-radius:10px;overflow:hidden;
+       display:grid;grid-template-columns:64px 1fr;box-shadow:0 30px 70px -35px rgba(20,30,25,.45);}
+  .rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
+  .cl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-family:var(--mono);font-size:10px;color:var(--rail-muted);position:relative;margin:3px 0;}
+  .cl.on{color:var(--rail-text);background:var(--rail-2);}
+  .cl.on:before{content:"";position:absolute;left:-15px;width:3px;height:18px;border-radius:2px;background:var(--amber);}
+  .cl .b{position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;background:var(--amber);}
+  .rail .sp{flex:1;}
+  .gear{color:var(--rail-muted);font-size:14px;margin-bottom:12px;}
+  .me{width:28px;height:28px;border-radius:50%;color:var(--rail-text);background:var(--rail-2);
+      display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;}
+
+  .main{min-width:0;padding:30px 44px 0;overflow:hidden;}
+  .head{display:flex;align-items:baseline;gap:18px;}
+  .h-name{font-family:var(--serif);font-size:25px;font-weight:500;letter-spacing:-.005em;}
+  .h-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);}
+  .h-right{margin-left:auto;display:flex;align-items:baseline;gap:20px;}
+  .txt{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);}
+  .btn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       border-radius:999px;padding:8px 16px;border:none;background:var(--pine);color:var(--rail-text);}
+
+  .figures{display:flex;gap:34px;margin:22px 0 0;padding-bottom:18px;border-bottom:1px solid var(--hair);}
+  .fig .v{font-family:var(--mono);font-size:16px;font-weight:500;}
+  .fig .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin-top:3px;}
+
+  .month{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);
+         padding:26px 0 6px;}
+
+  /* the lifted entry — the only elevated element */
+  .entry{background:var(--lift);border-radius:10px;box-shadow:0 10px 36px -20px rgba(30,54,43,.3);
+         border:1px solid var(--hair-2);margin:4px 0 8px;padding:0 26px;overflow:hidden;}
+  .e-h{display:flex;align-items:baseline;gap:14px;padding:18px 0 14px;border-bottom:1px solid var(--hair);}
+  .e-h .d{font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+  .e-h .t{font-family:var(--serif);font-size:17px;font-weight:500;}
+  .e-h .wf{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);}
+  .e-h .res{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);}
+  .e-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:0;padding:2px 0 16px;}
+  .e-grid>div:first-child{padding-right:32px;}
+  .e-grid>div:last-child{border-left:1px solid var(--hair-2);padding-left:32px;}
+  .e-ct{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);
+        padding:14px 0 7px;border-bottom:1px solid var(--hair-2);}
+  .e-cts{font-family:var(--mono);font-size:8.5px;color:var(--ink-2);opacity:.75;padding:6px 0 2px;}
+  .ev{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--hair-2);align-items:baseline;font-size:12.5px;line-height:1.5;}
+  .ev:first-of-type{border-top:none;}
+  .ev-t{font-family:var(--mono);font-size:10px;color:var(--ink-2);flex:none;width:60px;}
+  .ev-k{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;flex:none;width:64px;}
+  .ev-k.a{color:var(--amber-deep);} .ev-k.g{color:var(--green);} .ev-k.n{color:var(--ink-2);}
+  .ev code{font-family:var(--mono);font-size:10.5px;color:var(--pine);}
+  .tag{font-family:var(--mono);font-size:8px;color:var(--ink-2);margin-left:6px;}
+  .ev .note{color:var(--ink-2);font-style:italic;}
+  .rc{display:grid;grid-template-columns:74px 96px 1fr;gap:8px;padding:7px 0;font-family:var(--mono);font-size:10.5px;
+      border-top:1px solid var(--hair-2);align-items:baseline;}
+  .rc span:last-child{text-align:right;}
+  .rc.hd{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);border-top:none;padding-top:9px;}
+  .rc .ok{color:var(--green);}
+  .rc-sum{font-family:var(--mono);font-size:10px;font-weight:500;color:var(--ink);padding:9px 0 0;border-top:1px solid var(--hair);}
+  .e-foot{margin:0 -26px;background:var(--paper);border-top:1px solid var(--hair);
+          display:grid;grid-template-columns:1fr auto;gap:26px;padding:18px 26px 20px;align-items:start;}
+  .sum{font-size:13.5px;line-height:1.7;max-width:58ch;}
+  .slot{margin-top:10px;font-size:12px;font-style:italic;color:var(--amber-deep);
+        border-bottom:1px dashed rgba(176,133,46,.5);display:inline-block;padding-bottom:2px;}
+  .e-actions{display:flex;flex-direction:column;gap:9px;align-items:flex-end;padding-top:8px;}
+  .ghost{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);
+         background:none;border:none;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--hair);}
+
+  /* register rows — no boxes */
+  .row{display:flex;align-items:baseline;gap:14px;padding:12px 2px;border-bottom:1px solid var(--hair-2);font-size:13px;}
+  .row .d{font-family:var(--mono);font-size:10px;color:var(--ink-2);flex:none;width:56px;}
+  .row .dot{width:5px;height:5px;border-radius:50%;flex:none;position:relative;top:-2px;}
+  .dot.g{background:var(--green);} .dot.a{background:var(--amber);} .dot.n{background:var(--hair);}
+  .row .wf{font-family:var(--mono);font-size:8.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);flex:none;}
+  .row .m{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+  .row.q .x{color:var(--ink-2);}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F6F2E9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
+    <div style="height:10px"></div>
+    <div class="cl on">ND</div><div class="cl">CR</div><div class="cl">MB<span class="b"></span></div><div class="cl">BP</div>
+    <div class="sp"></div><div class="gear">&#9881;</div><div class="me">AR</div>
+  </aside>
+  <div class="main">
+    <div class="head">
+      <span class="h-name">Northgate Dental</span>
+      <span class="h-sub">Ledger &middot; kept 12 months</span>
+      <div class="h-right">
+        <span class="txt">All workflows &#8964;</span>
+        <span class="txt">Last 12 months &#8964;</span>
+        <button class="btn">Share receipt</button>
+      </div>
+    </div>
+
+    <div class="figures">
+      <div class="fig"><div class="v">212</div><div class="k">receipts &middot; 30d</div></div>
+      <div class="fig"><div class="v">1,438</div><div class="k">check-ins &middot; 30d</div></div>
+      <div class="fig"><div class="v">1</div><div class="k">incident &middot; 30d</div></div>
+      <div class="fig"><div class="v">26 days</div><div class="k">longest quiet run</div></div>
+    </div>
+
+    <div class="month">June</div>
+    <div class="entry">
+      <div class="e-h">
+        <span class="d">Jun 14</span>
+        <span class="t">12-minute pause</span>
+        <span class="wf">appointment reminders</span>
+        <span class="res">Resolved 9:41</span>
+      </div>
+      <div class="e-grid">
+        <div>
+          <div class="e-ct">Events</div>
+          <div class="ev"><span class="ev-t">09:02:41</span><span class="ev-k n">check-in</span><span>Last check-in before the gap</span></div>
+          <div class="ev"><span class="ev-t">09:03:12</span><span class="ev-k a">gap</span><span>Missed check-in &middot; alert sent<span class="tag">email</span></span></div>
+          <div class="ev"><span class="ev-t">09:04:02</span><span class="ev-k a">fail ping</span><span><code>TimeoutError: calendar API</code><span class="tag">redacted &middot; ttl 30d</span></span></div>
+          <div class="ev"><span class="ev-t">09:14:12</span><span class="ev-k g">recovered</span><span>Check-ins resumed</span></div>
+          <div class="ev"><span class="ev-t">09:17:30</span><span class="ev-k g">receipts</span><span>Reconciled &middot; 4 of 4 expected received</span></div>
+          <div class="ev"><span class="ev-t">09:41:07</span><span class="ev-k n">resolved</span><span class="note">"rotated the calendar credentials, redeployed" &middot; Alex</span></div>
+        </div>
+        <div>
+          <div class="e-ct">Receipts &middot; during the gap</div>
+          <div class="e-cts">expected weekdays by 9:05</div>
+          <div class="rc hd"><span>expected</span><span>received</span><span></span></div>
+          <div class="rc"><span>09:05</span><span>09:16:02</span><span class="ok">+11m</span></div>
+          <div class="rc"><span>09:05</span><span>09:16:04</span><span class="ok">+11m</span></div>
+          <div class="rc"><span>09:10</span><span>09:16:47</span><span class="ok">+6m</span></div>
+          <div class="rc"><span>09:10</span><span>09:17:11</span><span class="ok">+7m</span></div>
+          <div class="rc-sum">4 expected &middot; 4 received &middot; 0 outstanding</div>
+        </div>
+      </div>
+      <div class="e-foot">
+        <div>
+          <div class="sum">A 12-minute pause on Jun 14, 9:02 to 9:14. Caught at 9:03. The workflow reported a failure (timeout at the calendar API). Four reminders were due during the pause; all four arrived by 9:17. The 26 days before: quiet, 212 sends, 212 receipts.</div>
+          <div class="slot">Your read &mdash; required before any client note</div>
+        </div>
+        <div class="e-actions">
+          <button class="btn">Copy summary</button>
+          <button class="ghost">Compose client note</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row q"><span class="d">May 19</span><span class="dot g"></span><span class="x">Quiet run &middot; 26 days</span><span class="m">212 receipts &middot; to Jun 13</span></div>
+    <div class="month">May</div>
+    <div class="row"><span class="d">May 12</span><span class="dot a"></span><span class="wf">appointment reminders</span><span>3-minute pause &middot; resolved</span><span class="m">2 of 2 received &nbsp;&#9654;</span></div>
+    <div class="month">April</div>
+    <div class="row"><span class="d">Apr 03</span><span class="dot a"></span><span class="wf">invoice sync</span><span>Fail ping &middot; resolved</span><span class="m">no sends due &nbsp;&#9654;</span></div>
+    <div class="row q"><span class="d">Feb 03</span><span class="dot g"></span><span class="x">Quiet run &middot; 58 days</span><span class="m">381 receipts &middot; to Apr 02</span></div>
+  </div>
+</div>
+</body>
+</html>

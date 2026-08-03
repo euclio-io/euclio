@@ -1,5 +1,7 @@
 # Euclio MVP — Implementation Plan for Claude Code
 
+> **Updated Aug 2, 2026:** canary synthesis applied (M5.2 inserted; M5.5 rewritten as the ledger + answer view; scope line re-drawn). Decision record: `Euclio_canary_synthesis_addendum.md`.
+
 Goal: the thin loop a design partner can actually **validate with**, deployed. Built with Claude Code, in vertical slices, each testable before the next. Stack: **Stack A (own the watcher on Railway)**, Node/TypeScript. This version incorporates the full-plan inversion review — the DoD now runs all the way to the client, value is visible without waiting for a real failure, and recruitment runs in parallel.
 
 ---
@@ -102,7 +104,9 @@ Tests: facts.ts (times/durations render correctly; banned-words assertion — in
 
 **M5 · Facts + note view.** Incident detail renders `factsForIncident(...)` as lines (heartbeat: "stopped checking in"; explicit_fail: "reported a failure") + **the scrubbed `errorText` in a clearly freelancer-only diagnostic panel** + a note field (human-authored) + "mark resolved." `errorText` never enters facts output or anything composable into a ClientUpdate. *Test: see facts, see the diagnostic, add a note, save; confirm the diagnostic is absent from the compose flow.*
 
-**M5.5 · Reach the client (this closes the validation loop).** Freelancer composes a **`ClientUpdate`** from the facts + their notes (choosing what to include), marks it sent (copy-paste to their own inbox in v1 — Euclio doesn't email the client), and it's viewable at a **no-login `/u/[publicSlug]` page.** Plus a lightweight **"all-green" status they can send** in a quiet month, so value exists between incidents. *Test: compose an update, mark sent, open the public page.*
+**M5.2 · The canary (second sensor — launch scope per the synthesis addendum).** Schema deltas land here, not before (addendum §6): `Workflow.canaryAddress`, `CanaryExpectation` (rule + lateness window), `CanaryReceipt` (headers + subject hash only, bodies never persisted), `Incident.sendsDue/sendsArrived`, `WorkflowDailyStat.receiptsCount`. Inbound mail (Cloudflare Email Routing or SES → webhook, riding in the web service beside ping ingest, passive by construction): resolve workflow by address → match the nearest open expectation occurrence → write receipt → if an incident is open, recompute gap counts. First matched receipt becomes a ledger milestone. Unmatched receipts log with a null expectation and surface nowhere client-facing. *Test: a simulated pause spanning two due sends ends with "2 due in the gap, 2 arrived"; an unexpected send logs unmatched; receipts prune with raw pings while rollup counts survive.*
+
+**M5.5 · The ledger + answer view (this closes the validation loop).** Per-client register — NOT an issue-detail page (design spec: `euclio-answer-view.html`; kinship is Stripe's activity log, never Sentry): incidents, quiet runs, and milestones as rows, newest first; an incident expands inline to events + receipts side by side; a factual summary assembled from the record with a REQUIRED empty "your read" slot; Copy; Share receipt. Composing a **`ClientUpdate`** is one action on the entry (facts + the filled read, send blocked until the read exists; copy-paste to their own inbox in v1 — Euclio doesn't email the client), viewable at the **no-login `/u/[publicSlug]` page**, now framed as an attachable receipt. Keep the **"all-green" status** for quiet months. Inline expansion holds to ~10 events; beyond that, a focused panel. *Test: answer a simulated client question from the answer view in under a minute; compose is blocked until the read is filled; the diagnostic panel is absent from compose; open the public page.*
 
 ---
 
@@ -110,7 +114,7 @@ Tests: facts.ts (times/durations render correctly; banned-words assertion — in
 
 > add workflow → **confirm test ping ✓** → status → watcher (reconcile + debounce + dead-man's-switch) **+ explicit `/fail` → instant incident with scrubbed diagnostic** → alert → facts + note → **compose & send a client update + the no-login page** → **plus "simulate failure" and an "all-green" you can send.** Sentry + smoke test live. Deployed on Railway.
 
-That's M0–M5.5. The demo is now complete end to end: simulate a miss → caught by silence; throw an error → red incident *with the reason* in the same second → one click to a drafted heads-up that says only what happened. **Scope line, drawn on purpose: `/fail` + scrubbed diagnostics is the last pre-partner addition.** Everything past this (real client email delivery, per-client cadence, metrics, drift, agent-native, euclio-init, the redaction-flag notification) waits for a partner to ask.
+That's M0–M5.5. The demo is now complete end to end: simulate a miss → caught by silence; throw an error → red incident *with the reason* in the same second → one click to a drafted heads-up that says only what happened. **Scope line (amended by the canary synthesis): M5.2 was consciously added past the original "/fail + diagnostics is the last addition" line, because the landing page's "four arrived" made the canary load-bearing — honesty outranks scope discipline. The line is re-drawn after M5.2 and hardens: nothing else enters launch scope unless a partner asks or a public claim requires it.** Everything past this (real client email delivery, per-client cadence, metrics, content integrity, drift, euclio-init and the fuller agent setup doc, the redaction-flag notification) waits for a partner to ask — the M1 coding-agent snippet tab is already in scope above.
 
 ---
 
@@ -126,136 +130,6 @@ That's M0–M5.5. The demo is now complete end to end: simulate a miss → caugh
 
 ---
 
-## Paste this into `CLAUDE.md` at the repo root
+## CLAUDE.md
 
-```md
-# Euclio — project context for Claude Code
-
-## What this is
-Euclio watches the automations a freelancer/small agency runs for their clients
-(n8n, Make, Zapier, custom scripts) via a heartbeat ping. The moment one stops
-checking in, the freelancer finds out first — before their client does. The
-freelancer reviews the facts, adds their own note, and sends the client an
-update in their own words. It makes their monitoring retainer visibly worth it.
-
-Buyer/user = the freelancer. The freelancer's client is non-technical and never
-uses Euclio directly.
-
-## Non-negotiable principles
-1. HONESTY: Euclio states only what it captured — a workflow stopped checking in,
-   and when; that it resumed, and when; duration. It NEVER characterizes severity
-   or impact ("brief", "minor", "hiccup", "nothing was missed", "smoothly"). All
-   client-facing text comes from facts.ts and is unit-tested against banned words.
-2. THE FREELANCER SENDS, NOT EUCLIO. Euclio derives facts; a human reviews and
-   sends. Euclio never contacts the client on its own.
-3. TWO VIEWS, KEPT APART: dense factual views for the freelancer; the client only
-   gets what the freelancer chooses to send. Never pipe the raw view to a client.
-4. EUCLIO IS INVISIBLE TO THE CLIENT. No client login, no client dashboard.
-5. VALUE MUST BE VISIBLE WITHOUT WAITING: a "simulate failure" path + an all-green
-   status the freelancer can send, so a quiet month still delivers value.
-6. THE LOOP MUST REACH THE CLIENT: composing + sending a ClientUpdate is in scope,
-   because whether the CLIENT values it is the thing being validated.
-7. DATA: Euclio stores facts about the machinery, never the data flowing through
-   it. The sole exception is Incident.errorText: opt-in per workflow (default
-   OFF), truncated+scrubbed client-side in the snippet, scrubbed AGAIN at ingest
-   (scrub.ts — the server pass is the only scrub for platform pings), size-capped,
-   hard-deleted after 30 days by the nightly purge. errorText renders ONLY in the
-   freelancer's incident view — never in facts.ts output, a Note, or a
-   ClientUpdate. Never claim "we catch everything"; the claim is layered-and-
-   deleted, stated honestly.
-
-## Watcher = the core (a monitoring tool's scheduler is the product)
-- Always-on node-cron worker. RECONCILIATION-BASED: each run processes every
-  workflow overdue since the last successful check, idempotently.
-- DEBOUNCE: require a minimum sustained-down duration before opening an incident;
-  never re-open storms on a flapping workflow. A monitor that cries wolf is dead.
-- DEAD-MAN'S-SWITCH each run (Healthchecks.io / cron-job.org): if the watcher
-  dies, something independent alerts us. During a trial, Euclio missing a real
-  incident is worse than no tool. Trust-critical.
-- TWO DETECTION PATHS, DIFFERENT RULES: silence (missed heartbeat) is debounced
-  by the watcher. An explicit /fail ping is unambiguous — the INGEST path opens
-  the incident (source: explicit_fail) IMMEDIATELY, no debounce — but with a
-  re-fail suppression window: no re-open/re-alert if it re-fails within N hours
-  of resolving. Suppression is tested time-logic, same tier as debounce.
-- NIGHTLY PURGE: the watcher NULLs Incident.errorText older than 30 days.
-  Purging the diagnostic NEVER deletes the Incident — the fact outlives the data.
-- Ingest: /api/ping/[token] (success) and /api/ping/[token]/fail (explicit
-  failure), accepting GET and POST. Simple, fast, idempotent, rate-limited,
-  payload size-capped. scrub.ts runs on every /fail payload at ingest.
-
-## Observability & security
-- Sentry + structured logging from M0. A monitoring tool blind to its own errors
-  is unacceptable.
-- Scope EVERY query by accountId. A cross-tenant leak is the highest-severity bug
-  — treat it as a review/test gate, not a convention.
-- Ping.payload is a small non-sensitive metric only. Never customer PII/PHI.
-- Snippets are the integration (NO SDK, no published package): per-language,
-  token pre-filled, try/catch so an Euclio outage can never crash the client's
-  automation, short awaited timeout, zero deps, catch-block -> /fail. Platform
-  /fail wiring maps the error message field ONLY, never the execution payload.
-
-## Data model
-Full schema in schema.prisma. Account is the tenant root, AUTO-CREATED per signup
-(don't force a Clerk Org yet). Status is pending|healthy|down|paused; never write
-healthy for a span the watcher didn't observe. Note/ClientUpdate bodies are always
-human-authored (authorUserId). Soft-delete Client and Workflow (archivedAt).
-
-## MVP scope (build only this — the DoD loop)
-add client + workflow -> confirm test ping ✓ -> ping ingest (+ /fail + scrub) +
-status -> node-cron watcher (reconcile + debounce + dead-man's-switch + nightly
-purge) opens/resolves incidents; /fail opens incidents immediately with
-suppression -> email the freelancer -> facts + diagnostic + note view ->
-compose & send a ClientUpdate + no-login page -> plus simulate-failure and an
-all-green status. Sentry + smoke test live. /fail + scrubbed diagnostics is the
-LAST pre-partner addition — anything further waits for a partner to ask.
-
-## Do NOT build (out of scope — flag if asked, don't add)
-- client-facing dashboard/portal or client login
-- Euclio emailing the client directly (freelancer sends from their own inbox)
-- billing / payments in the app
-- an SDK or any published npm/pip package (the snippet IS the integration)
-- listed platform integrations (a Zapier app, an n8n community node) — the
-  native HTTP module is the mechanism
-- the euclio-init CLI (fast-follow, after partners)
-- a "we redacted something" notification to the freelancer (open decision,
-  post-MVP — the errorRedactedByServer flag is stored so this needs no migration)
-- per-client cadence, Loom/voice, AI anomaly detection, drift, agent-native
-  setup, teams/roles UI, multi-tenant scaling beyond the Account key
-- any cold-email / outreach pipeline
-
-## Stack
-Next.js (App Router, TS) as a long-running server on Railway (web + worker, one
-repo) · Prisma v7 · Neon Postgres · Clerk auth · Resend email · Sentry ·
-node-cron watcher. One repo, one host, one DB, one language. No serverless cron,
-no queue, no Docker, no microservices.
-
-## Topology (modular monolith, split by reliability tier — not by fashion)
-- One repo, ONE Postgres, one shared Prisma/domain layer. Two Railway processes:
-  a WEB service (dashboard + compose + auth + ingest) and a WATCHER worker.
-- Ingest (POST /api/ping/[token]) MUST stay a clean, self-contained module with
-  no shared mutable state with the dashboard. It rides in the web service for now
-  but must be extractable into its own always-up process as a lift-and-shift.
-  WHY: ingest is must-be-up; the UI is what gets deployed constantly. Keeping them
-  separable means a UI deploy can't threaten the ping path.
-- EXTRACT ingest into its own process only when: (a) you run >1 web instance, or
-  (b) UI deploy frequency starts threatening ping reliability. Not before.
-- Do NOT merge ingest into the watcher worker. The watcher is a pure internal loop
-  with ZERO inbound public surface — a public endpoint there lets a ping flood
-  compete with the tick. Different shapes, kept apart.
-- No separate databases, ever, at this stage: a single accountId-scoped query +
-  transactions is the security invariant. Separate DBs break it.
-
-## Conventions
-- Vertical slices; each milestone deploys and is testable on its own.
-- Tests only for the three honesty-critical modules: facts.ts (banned-words +
-  formatting, incl. the "reported a failure" shape), scrub.ts (secret-shape
-  fixtures redacted; truncate-first order), and the watcher (reconcile +
-  debounce + /fail suppression time-logic).
-- Keep it boring and small. When unsure, do less.
-```
-
-## First prompt to Claude Code
-
-> Read `CLAUDE.md` and `schema.prisma`. Build the M0 slice only: scaffold a Next.js (App Router, TypeScript) app configured to run as a long-running server on Railway, with Prisma + a Neon Postgres connection and Clerk auth. Use the provided `schema.prisma` and run the initial migration against Neon. On sign-up, auto-create an `Account` and a `User` row (do not require a Clerk Organization). Wire Sentry + structured logging and a `/api/health` endpoint. Add a single authenticated `/dashboard` route showing "no workflows yet." Give me the exact steps to get Neon, Clerk, Resend, and Sentry keys into `.env`, run `prisma migrate deploy`, and deploy the web service to Railway. Do NOT build any ping/watcher/worker logic yet — that's M1+. Keep the skip list in mind.
-
-Then one slice per session down the list. The worker service stands up at M3.
+Maintained ONLY at the repo root — one copy, no duplication (duplicated context is how this project drifted twice). If a milestone here and CLAUDE.md ever disagree, fix both in the same commit.

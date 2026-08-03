@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Euclio — Northgate Dental · Appointment reminders · Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F1EA; --lift:#FBFAF7; --rail:#1E362B; --rail-2:#24402F;
+    --rail-text:#F6F2E9; --rail-muted:rgba(246,242,233,.45);
+    --ink:#243329; --ink-2:#66756B; --pine:#1E362B; --green:#2F6B4A;
+    --amber:#B0852E; --amber-deep:#8A6423;
+    --hair:rgba(36,51,41,.12); --hair-2:rgba(36,51,41,.055);
+    --serif:'Spectral',serif; --sans:'Instrument Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;}
+  body{background:#E8E5DD;font-family:var(--sans);color:var(--ink);padding:40px;
+       display:flex;justify-content:center;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+  .app{width:1180px;height:760px;background:var(--paper);border-radius:10px;overflow:hidden;
+       display:grid;grid-template-columns:64px 1fr;box-shadow:0 30px 70px -35px rgba(20,30,25,.45);}
+  .rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
+  .cl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-family:var(--mono);font-size:10px;color:var(--rail-muted);position:relative;margin:3px 0;}
+  .cl.on{color:var(--rail-text);background:var(--rail-2);}
+  .cl.on:before{content:"";position:absolute;left:-15px;width:3px;height:18px;border-radius:2px;background:var(--amber);}
+  .cl .b{position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;background:var(--amber);}
+  .rail .sp{flex:1;}
+  .gear{color:var(--rail-muted);font-size:14px;margin-bottom:12px;}
+  .me{width:28px;height:28px;border-radius:50%;color:var(--rail-text);background:var(--rail-2);
+      display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;}
+
+  .main{min-width:0;padding:30px 44px 0;}
+  .crumb{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);}
+  .head{display:flex;align-items:baseline;gap:16px;margin-top:8px;}
+  .h-name{font-family:var(--serif);font-size:25px;font-weight:500;}
+  .tok{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);}
+
+  /* zone 1: tabs — anchored by the strong rule */
+  .tabs{display:flex;gap:24px;margin-top:22px;border-bottom:1px solid var(--hair);}
+  .tab{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-2);padding:0 0 10px;
+       border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .tab.on{color:var(--ink);border-bottom-color:var(--pine);}
+
+  .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:0;padding:8px 0 24px;}
+  .grid>div:first-child{padding-right:40px;}
+  .grid>div:last-child{border-left:1px solid var(--hair-2);padding-left:40px;}
+
+  .zone-l{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);
+          padding:18px 0 8px;border-bottom:1px solid var(--hair-2);}
+
+  .consent{display:flex;gap:11px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--hair-2);}
+  .cb{width:14px;height:14px;border:1.5px solid var(--ink-2);border-radius:3px;flex:none;margin-top:2px;}
+  .consent .t{font-size:13px;}
+  .consent .h{font-size:11.5px;color:var(--ink-2);margin-top:3px;line-height:1.55;}
+
+  /* the snippet — the one lifted element */
+  .lift{background:var(--lift);border:1px solid var(--hair-2);border-radius:10px;
+        box-shadow:0 10px 36px -20px rgba(30,54,43,.28);margin-top:16px;overflow:hidden;}
+  pre{margin:0;padding:16px 20px;font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--pine);
+      white-space:pre;overflow-x:auto;}
+  pre .cmt{color:var(--ink-2);}
+  .lift-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;
+             background:var(--paper);border-top:1px solid var(--hair);padding:12px 20px;}
+  .micro{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);}
+  .btn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       border-radius:999px;padding:8px 16px;border:none;background:var(--pine);color:var(--rail-text);}
+
+  .fail{padding:14px 0 0;}
+  .fail .t{font-size:13px;font-weight:600;}
+  .fail .h{font-size:11.5px;color:var(--ink-2);margin:4px 0 9px;line-height:1.55;max-width:52ch;}
+  .fail code{font-family:var(--mono);font-size:10.5px;color:var(--pine);border-bottom:1px solid var(--hair);padding-bottom:2px;}
+
+  .ok{display:flex;align-items:baseline;gap:9px;font-family:var(--mono);font-size:12px;color:var(--green);padding:14px 0 0;}
+  .ok .d{width:7px;height:7px;border-radius:50%;background:var(--green);position:relative;top:-1px;}
+  .ok-sub{font-family:var(--mono);font-size:10px;color:var(--ink-2);margin-top:8px;line-height:1.9;}
+  .ok-sub .edit{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--hair);}
+
+  .can .row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:10px 0;border-bottom:1px solid var(--hair-2);}
+  .can .row:last-child{border-bottom:none;}
+  .can .k{font-size:12.5px;color:var(--ink-2);flex:none;}
+  .can .v{font-family:var(--mono);font-size:10.5px;color:var(--ink);text-align:right;}
+  .can .edit{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--hair);}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F6F2E9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
+    <div style="height:10px"></div>
+    <div class="cl on">ND</div><div class="cl">CR</div><div class="cl">MB<span class="b"></span></div><div class="cl">BP</div>
+    <div class="sp"></div><div class="gear">&#9881;</div><div class="me">AR</div>
+  </aside>
+  <div class="main">
+    <div class="crumb">Northgate Dental &nbsp;/&nbsp; Appointment reminders</div>
+    <div class="head">
+      <span class="h-name">Add the check-in</span>
+      <span class="tok">wf_8f2a &#10697;</span>
+    </div>
+
+    <div class="tabs">
+      <span class="tab">n8n</span><span class="tab">Make</span><span class="tab">Zapier</span>
+      <span class="tab on">Node</span><span class="tab">Python</span><span class="tab">curl</span>
+      <span class="tab">Coding agent</span>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="consent">
+          <span class="cb"></span>
+          <div><div class="t">Capture error details on failure</div>
+          <div class="h">Off by default. Scrubbed before it leaves your machine, deleted after 30 days. Changes the snippet below.</div></div>
+        </div>
+
+        <div class="lift">
+          <pre>try {
+  await fetch('https://api.euclio.io/ping/wf_8f2a', {
+    method: 'POST',
+    signal: AbortSignal.timeout(4000)
+  });
+} catch {} <span class="cmt">// an Euclio outage never touches your work</span></pre>
+          <div class="lift-foot">
+            <span class="micro">zero dependencies &middot; the request is the whole footprint</span>
+            <button class="btn">Copy</button>
+          </div>
+        </div>
+
+        <div class="zone-l">Optional &middot; report failures explicitly</div>
+        <div class="fail">
+          <div class="t">In your own error handling</div>
+          <div class="h">A failure ping opens the incident immediately, no waiting for silence. Add to your catch block or platform error route:</div>
+          <code>POST https://api.euclio.io/ping/wf_8f2a/fail</code>
+        </div>
+      </div>
+
+      <div>
+        <div class="zone-l">Listening</div>
+        <div class="ok"><span class="d"></span>test ping received &middot; 2:14:52pm</div>
+        <div class="ok-sub">appointment reminders &middot; marked healthy<br>expected every 30 min &middot; grace 15 min &middot; <span class="edit">edit</span></div>
+
+        <div class="zone-l" style="margin-top:26px;">Canary &middot; optional</div>
+        <div class="can">
+          <div class="row"><span class="k">Silent recipient address</span><span class="v">canary-wf_8f2a@in.euclio.io &#10697;</span></div>
+          <div class="row"><span class="k">Expected</span><span class="v">weekdays by 9:05 &middot; window 30 min &nbsp;<span class="edit">edit</span></span></div>
+          <div class="row"><span class="k">Stores</span><span class="v">arrival times only</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

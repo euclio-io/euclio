@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Euclio — Clients</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F4F1EA; --rail:#1E362B; --rail-2:#24402F;
+    --rail-text:#F6F2E9; --rail-muted:rgba(246,242,233,.45);
+    --ink:#243329; --ink-2:#66756B; --pine:#1E362B; --green:#2F6B4A;
+    --amber:#B0852E; --amber-deep:#8A6423;
+    --hair:rgba(36,51,41,.12); --hair-2:rgba(36,51,41,.055);
+    --serif:'Spectral',serif; --sans:'Instrument Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;}
+  body{background:#E8E5DD;font-family:var(--sans);color:var(--ink);padding:40px;
+       display:flex;justify-content:center;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+  .app{width:1180px;height:720px;background:var(--paper);border-radius:10px;overflow:hidden;
+       display:grid;grid-template-columns:64px 1fr;box-shadow:0 30px 70px -35px rgba(20,30,25,.45);}
+  .rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
+  .cl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-family:var(--mono);font-size:10px;color:var(--rail-muted);position:relative;margin:3px 0;}
+  .cl .b{position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;background:var(--amber);}
+  .rail .sp{flex:1;}
+  .gear{color:var(--rail-muted);font-size:14px;margin-bottom:12px;}
+  .me{width:28px;height:28px;border-radius:50%;color:var(--rail-text);background:var(--rail-2);
+      display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;}
+
+  .main{min-width:0;padding:30px 44px 0;}
+  .head{display:flex;align-items:baseline;gap:18px;}
+  .h-name{font-family:var(--serif);font-size:25px;font-weight:500;}
+  .h-right{margin-left:auto;display:flex;align-items:baseline;gap:20px;}
+  .txt{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);}
+  .btn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+       border-radius:999px;padding:8px 16px;border:none;background:var(--pine);color:var(--rail-text);}
+
+  /* the certainty line — typography, not a widget */
+  .pulse{margin:30px 0 0;padding-bottom:22px;border-bottom:1px solid var(--hair);}
+  .pulse .big{font-family:var(--serif);font-size:23px;font-weight:500;color:var(--amber-deep);}
+  .pulse .big .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--amber);
+                   margin-right:11px;position:relative;top:-2px;}
+  .pulse .sub{font-size:13px;color:var(--ink-2);margin-top:7px;padding-left:19px;}
+  .pulse .when{float:right;font-family:var(--mono);font-size:10px;color:var(--ink-2);}
+
+  .figures{display:flex;gap:34px;margin:20px 0 0;padding-bottom:16px;border-bottom:1px solid var(--hair-2);}
+  .fig .v{font-family:var(--mono);font-size:16px;font-weight:500;}
+  .fig .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin-top:3px;}
+
+  .l-label{display:flex;justify-content:space-between;padding:20px 0 4px;
+           font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);}
+
+  .row{display:flex;align-items:center;gap:16px;padding:15px 2px;border-bottom:1px solid var(--hair-2);}
+  .row .tick{width:3px;height:30px;border-radius:2px;flex:none;background:transparent;}
+  .row.open .tick{background:var(--amber);}
+  .row .who{min-width:0;}
+  .row .nm{font-family:var(--serif);font-size:15.5px;font-weight:500;}
+  .row .st{display:flex;align-items:baseline;gap:8px;font-size:12.5px;color:var(--ink-2);margin-top:3px;}
+  .st .d{width:5px;height:5px;border-radius:50%;flex:none;position:relative;top:-2px;}
+  .d.a{background:var(--amber);} .d.g{background:var(--green);}
+  .st .hot{color:var(--amber-deep);}
+  .row .m{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-2);text-align:right;line-height:1.8;}
+  .row .chev{color:var(--ink-2);font-size:10px;padding-left:6px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F6F2E9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
+    <div style="height:10px"></div>
+    <div class="cl">ND</div><div class="cl">CR</div><div class="cl">MB<span class="b"></span></div><div class="cl">BP</div>
+    <div class="sp"></div><div class="gear">&#9881;</div><div class="me">AR</div>
+  </aside>
+  <div class="main">
+    <div class="head">
+      <span class="h-name">Clients</span>
+      <div class="h-right"><span class="txt">Last 30 days &#8964;</span><button class="btn">+ Add client</button></div>
+    </div>
+
+    <div class="pulse">
+      <span class="when">Sat Jun 14 &middot; 2:15pm</span>
+      <div class="big"><span class="dot"></span>One open incident.</div>
+      <div class="sub">Mila's Bakery &middot; order confirmations &middot; missed check-in 1:47pm &middot; open 28 min</div>
+    </div>
+
+    <div class="figures">
+      <div class="fig"><div class="v">4</div><div class="k">clients</div></div>
+      <div class="fig"><div class="v">11</div><div class="k">workflows watched</div></div>
+      <div class="fig"><div class="v">694</div><div class="k">receipts &middot; 30d</div></div>
+      <div class="fig"><div class="v">3</div><div class="k">incidents &middot; 30d</div></div>
+    </div>
+
+    <div class="l-label"><span>The book</span><span>attention first</span></div>
+
+    <div class="row open">
+      <span class="tick"></span>
+      <div class="who"><div class="nm">Mila's Bakery</div>
+        <div class="st"><span class="d a"></span><span class="hot">Order confirmations &middot; missed check-in 1:47pm &middot; open 28 min</span></div></div>
+      <div class="m">4 workflows<br>268 receipts &middot; 30d</div><span class="chev">&#9654;</span>
+    </div>
+    <div class="row">
+      <span class="tick"></span>
+      <div class="who"><div class="nm">Northgate Dental</div>
+        <div class="st"><span class="d g"></span><span>Quiet since 9:41am &middot; 12-min pause resolved, 4 of 4 received</span></div></div>
+      <div class="m">3 workflows<br>212 receipts &middot; 30d</div><span class="chev">&#9654;</span>
+    </div>
+    <div class="row">
+      <span class="tick"></span>
+      <div class="who"><div class="nm">Calder Roofing</div>
+        <div class="st"><span class="d g"></span><span>Quiet run &middot; 41 days</span></div></div>
+      <div class="m">2 workflows<br>118 receipts &middot; 30d</div><span class="chev">&#9654;</span>
+    </div>
+    <div class="row">
+      <span class="tick"></span>
+      <div class="who"><div class="nm">Beacon Physio</div>
+        <div class="st"><span class="d g"></span><span>Quiet run &middot; 12 days</span></div></div>
+      <div class="m">1 workflow<br>96 receipts &middot; 30d</div><span class="chev">&#9654;</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

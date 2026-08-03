@@ -107,6 +107,7 @@ the human "your read" is filled) + /u/[publicSlug] receipt + all-green status ->
 plus simulate-failure. Sentry + smoke test live. Answer-view design spec:
 aider_project_context/euclio-answer-view.html (register layout, NOT an
 issue-detail page).
+Design system: Spectral/Instrument Sans/IBM Plex Mono on paper tokens, three separation levels (zone rule or tint, anchored label, hairline row), one lifted element per screen — specs: euclio-answer-view.html (ledger), euclio-home-view.html (home), euclio-setup-view.html (M1 setup; canary card is M5.2).
 
 ## Do NOT build (out of scope — flag if asked, don't add)
 - client-facing dashboard/portal or client login
