@@ -111,13 +111,16 @@ model Workflow {
   lastPingAt              DateTime?
   lastCheckedAt           DateTime? // watcher's last reconciliation pass; used for idempotency
   archivedAt              DateTime? // soft-delete
+  canaryAddress           String?        @unique // canary-<cuid>@euclio.io; null = heartbeat-only
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
 
-  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  pings     Ping[]
-  incidents Incident[]
-  notes     Note[]
+  client       Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pings        Ping[]
+  incidents    Incident[]
+  notes        Note[]
+  expectations CanaryExpectation[]
+  receipts     CanaryReceipt[]
 
   @@index([clientId])
   @@index([status])
@@ -136,17 +139,19 @@ model Ping {
 }
 
 model Incident {
-  id         String         @id @default(cuid())
-  workflowId String
-  source     IncidentSource @default(heartbeat)
-  status     IncidentStatus @default(open)
-  openedAt   DateTime       @default(now())
-  resolvedAt DateTime?
-  errorText  String? // scrubbed error from /fail; freelancer-only; purged after 30 days
-  errorRedactedByServer Boolean @default(false) // flag: server-side redaction occurred
-  alertedAt  DateTime? // set when the alert email is sent; idempotency guard
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id                    String         @id @default(cuid())
+  workflowId            String
+  source                IncidentSource @default(heartbeat)
+  status                IncidentStatus @default(open)
+  openedAt              DateTime       @default(now())
+  resolvedAt            DateTime?
+  errorText             String? // scrubbed error from /fail; freelancer-only; purged after 30 days
+  errorRedactedByServer Boolean        @default(false) // flag: server-side redaction occurred
+  alertedAt             DateTime? // set when the alert email is sent; idempotency guard
+  sendsDue              Int? // canary gap accounting: occurrences expected during the incident window
+  sendsArrived          Int? // canary gap accounting: receipts matched after recovery
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   notes    Note[]
@@ -202,4 +207,39 @@ model ClientUpdate {
 
   @@index([accountId])
   @@index([clientId])
+}
+
+// ---------------- canary (M5.2) ----------------
+
+// A schedule rule for when a canary email is expected to arrive.
+// rule is plain text for MVP ("weekdays by 09:05", "daily by 14:00").
+model CanaryExpectation {
+  id         String   @id @default(cuid())
+  workflowId String
+  rule       String   // plain text schedule: "weekdays by HH:MM" or "daily by HH:MM"
+  windowMins Int      @default(30) // receipt is matched if it arrives within ±windowMins of the expected time
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  workflow Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  receipts CanaryReceipt[]
+
+  @@index([workflowId])
+}
+
+// A single inbound email received at the canary address.
+// Bodies are NEVER persisted — headers + subject hash only (data principle §7).
+model CanaryReceipt {
+  id            String    @id @default(cuid())
+  workflowId    String
+  receivedAt    DateTime  @default(now())
+  fromAddr      String? // sender address (for debugging; not shown client-facing)
+  subjectHash   String? // SHA-256 hex of the subject line — body discarded immediately
+  expectationId String? // matched CanaryExpectation occurrence; null = unexpected send
+  createdAt     DateTime  @default(now())
+
+  workflow    Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  expectation CanaryExpectation? @relation(fields: [expectationId], references: [id])
+
+  @@index([workflowId, receivedAt])
 }

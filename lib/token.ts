@@ -12,3 +12,12 @@ export function generateWorkflowToken(): string {
 export function generatePublicSlug(): string {
   return `cu_${randomBytes(18).toString("base64url")}`;
 }
+
+/**
+ * Canary email address for a workflow.
+ * Format: canary-<cuid-like random>@euclio.io
+ * Globally unique and unguessable — the address IS the access token.
+ */
+export function generateCanaryAddress(): string {
+  return `canary-${randomBytes(12).toString("base64url")}@euclio.io`;
+}

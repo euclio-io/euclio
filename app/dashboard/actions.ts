@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
-import { generateWorkflowToken, generatePublicSlug } from "@/lib/token";
+import { generateWorkflowToken, generatePublicSlug, generateCanaryAddress } from "@/lib/token";
 
 export type ActionState = { error: string | null; publicSlug?: string };
 
@@ -215,6 +215,68 @@ export async function createClientUpdate(
 
   revalidatePath(`/dashboard/clients/${clientId}`);
   return { error: null, publicSlug: update.publicSlug };
+}
+
+export async function enableCanary(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const workflowId = String(formData.get("workflowId") ?? "");
+
+  // Ownership check: workflow → client → accountId.
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: workflowId, client: { accountId: account.id }, archivedAt: null },
+    select: { id: true, canaryAddress: true },
+  });
+  if (!workflow) return { error: "Workflow not found." };
+  if (workflow.canaryAddress) return { error: null }; // already enabled — idempotent
+
+  const canaryAddress = generateCanaryAddress();
+  await prisma.workflow.update({
+    where: { id: workflowId },
+    data: { canaryAddress },
+  });
+
+  logger.info("workflow.canary_enabled", { accountId: account.id, workflowId });
+  revalidatePath("/dashboard");
+  return { error: null };
+}
+
+export async function createExpectation(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const workflowId = String(formData.get("workflowId") ?? "");
+  const rule = String(formData.get("rule") ?? "").trim();
+  const windowMinsRaw = Number(formData.get("windowMins") ?? "30");
+
+  if (!rule) return { error: "Schedule rule is required." };
+  if (!rule.match(/^(daily|weekdays)\s+by\s+\d{1,2}:\d{2}$/i)) {
+    return { error: 'Rule must be "daily by HH:MM" or "weekdays by HH:MM".' };
+  }
+  if (!Number.isInteger(windowMinsRaw) || windowMinsRaw < 1 || windowMinsRaw > 1440) {
+    return { error: "Window must be between 1 and 1440 minutes." };
+  }
+
+  // Ownership check.
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: workflowId, client: { accountId: account.id }, archivedAt: null },
+    select: { id: true },
+  });
+  if (!workflow) return { error: "Workflow not found." };
+
+  await prisma.canaryExpectation.create({
+    data: { workflowId: workflow.id, rule, windowMins: windowMinsRaw },
+  });
+
+  logger.info("canary_expectation.created", { accountId: account.id, workflowId });
+  revalidatePath("/dashboard");
+  return { error: null };
 }
 
 export async function simulateFailure(_prev: ActionState, formData: FormData): Promise<ActionState> {

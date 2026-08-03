@@ -101,6 +101,8 @@ export default async function ClientLedgerPage({
               status: true,
               openedAt: true,
               resolvedAt: true,
+              sendsDue: true,
+              sendsArrived: true,
               notes: {
                 orderBy: { createdAt: "asc" },
                 select: { id: true, text: true, createdAt: true },
@@ -123,6 +125,8 @@ export default async function ClientLedgerPage({
     status: string;
     openedAt: Date;
     resolvedAt: Date | null;
+    sendsDue: number | null;
+    sendsArrived: number | null;
     workflowName: string;
     workflowId: string;
     notes: { id: string; text: string; createdAt: Date }[];
@@ -312,6 +316,16 @@ export default async function ClientLedgerPage({
                             {line}
                           </p>
                         ))}
+                        {/* Canary gap accounting — only shown when data exists */}
+                        {inc.sendsDue !== null && inc.sendsDue > 0 && (
+                          <p className={`font-mono text-xs mt-2 ${
+                            inc.sendsArrived === inc.sendsDue
+                              ? "text-green"
+                              : "text-amber-deep"
+                          }`}>
+                            {inc.sendsArrived ?? 0} of {inc.sendsDue} sends verified at canary
+                          </p>
+                        )}
                         {inc.notes.length > 0 && (
                           <div className="mt-3 space-y-1">
                             {inc.notes.map((n) => (

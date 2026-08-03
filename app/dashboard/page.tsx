@@ -8,6 +8,8 @@ import { formatRelativeTime } from "@/lib/format-relative-time";
 import { AddClientForm } from "./add-client-form";
 import { AddWorkflowForm } from "./add-workflow-form";
 import { SimulateFailureForm } from "./simulate-failure-form";
+import { EnableCanaryForm } from "./enable-canary-form";
+import { AddExpectationForm } from "./add-expectation-form";
 
 /**
  * The freelancer's dashboard — and the M0 tenant-bootstrap resource.
@@ -41,6 +43,11 @@ export default async function DashboardPage() {
             orderBy: { openedAt: "desc" },
             take: 1,
             select: { id: true, source: true, openedAt: true },
+          },
+          expectations: {
+            where: { active: true },
+            select: { id: true, rule: true, windowMins: true },
+            orderBy: { createdAt: "asc" },
           },
         },
       },
@@ -249,6 +256,53 @@ export default async function DashboardPage() {
                             <SimulateFailureForm workflowId={workflow.id} />
                           </div>
                         )}
+
+                        {/* Canary section */}
+                        <div
+                          style={{
+                            marginTop: "6px",
+                            paddingTop: "6px",
+                            borderTop: "1px solid var(--hair)",
+                          }}
+                        >
+                          {workflow.canaryAddress ? (
+                            <>
+                              <div
+                                style={{
+                                  fontFamily: "var(--font-mono)",
+                                  fontSize: "10px",
+                                  color: "var(--ink-2)",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                <span style={{ color: "var(--pine)" }}>canary ✓</span>{" "}
+                                add to send list:{" "}
+                                <code style={{ color: "var(--pine)" }}>
+                                  {workflow.canaryAddress}
+                                </code>
+                              </div>
+                              {workflow.expectations.length > 0 ? (
+                                <div
+                                  style={{
+                                    fontFamily: "var(--font-mono)",
+                                    fontSize: "9px",
+                                    color: "var(--ink-2)",
+                                  }}
+                                >
+                                  {workflow.expectations.map((e) => (
+                                    <span key={e.id}>
+                                      {e.rule} · ±{e.windowMins}m
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <AddExpectationForm workflowId={workflow.id} />
+                              )}
+                            </>
+                          ) : (
+                            <EnableCanaryForm workflowId={workflow.id} />
+                          )}
+                        </div>
                       </li>
                     );
                   })}
