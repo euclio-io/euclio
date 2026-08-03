@@ -30,7 +30,7 @@ export async function pingDeadmansSwitch(): Promise<void> {
       });
       return;
     }
-    logger.debug("watcher.deadmans.ok");
+    //logger.debug("watcher.deadmans.ok");
   } catch (err) {
     logger.error("watcher.deadmans.error", { error: err });
   }
