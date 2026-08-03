@@ -3,317 +3,439 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
-import { getBaseUrl } from "@/lib/base-url";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 import { AddClientForm } from "./add-client-form";
-import { AddWorkflowForm } from "./add-workflow-form";
-import { SimulateFailureForm } from "./simulate-failure-form";
-import { EnableCanaryForm } from "./enable-canary-form";
-import { AddExpectationForm } from "./add-expectation-form";
 
 /**
- * The freelancer's dashboard — and the M0 tenant-bootstrap resource.
- *
- * Auth is enforced HERE, at the resource, not via middleware matchers: Clerk's
- * current guidance is to protect as close to the resource as possible, so the
- * guard can't drift out of sync with what it guards.
+ * Home — "Clients" view.
+ * Matches euclio-home-view.html:
+ *   - Pulse line: open incident summary (amber) or quiet state (green)
+ *   - Figures row: clients / workflows / receipts 30d / incidents 30d
+ *   - Client list rows: tick / name+status / workflow count + receipts
  */
 export default async function DashboardPage() {
   const { userId } = await auth();
-  if (!userId) redirect("/sign-in"); // protect close to the resource
+  if (!userId) redirect("/sign-in");
 
   const account = await getOrCreateAccountForCurrentUser();
-  const baseUrl = await getBaseUrl();
 
-  // CANONICAL TENANT-SCOPING PATTERN — the security invariant of the whole app.
-  // Every query scopes by accountId, sourced ONLY from the resolved Account,
-  // never from a URL param or client input. A cross-tenant leak is the
-  // highest-severity bug (CLAUDE.md), so this is a review gate, not a style choice.
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  // Full client + workflow + incident data for the home view
   const clients = await prisma.client.findMany({
     where: { accountId: account.id, archivedAt: null },
     orderBy: { name: "asc" },
-    include: {
+    select: {
+      id: true,
+      name: true,
       workflows: {
         where: { archivedAt: null },
-        orderBy: { name: "asc" },
-        include: {
-          // Include the most recent open incident so we can link to it.
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          lastPingAt: true,
+          expectedIntervalMinutes: true,
           incidents: {
             where: { status: "open" },
             orderBy: { openedAt: "desc" },
             take: 1,
             select: { id: true, source: true, openedAt: true },
           },
-          expectations: {
-            where: { active: true },
-            select: { id: true, rule: true, windowMins: true },
-            orderBy: { createdAt: "asc" },
-          },
         },
       },
     },
   });
 
+  // Aggregate figures
+  const totalWorkflows = clients.reduce((s, c) => s + c.workflows.length, 0);
+
+  const incidentCount30d = await prisma.incident.count({
+    where: {
+      workflow: { client: { accountId: account.id } },
+      openedAt: { gte: thirtyDaysAgo },
+    },
+  });
+
+  const pingCount30d = await prisma.ping.count({
+    where: {
+      workflow: { client: { accountId: account.id } },
+      receivedAt: { gte: thirtyDaysAgo },
+    },
+  });
+
+  // Open incidents across all clients (for pulse line)
+  const openIncidents = clients.flatMap((c) =>
+    c.workflows.flatMap((w) =>
+      w.incidents.map((i) => ({
+        ...i,
+        workflowName: w.name,
+        clientName: c.name,
+        openedAt: i.openedAt,
+      })),
+    ),
+  );
+
+  // Per-client receipt counts (30d) for the row meta column
+  const receiptCounts = await prisma.canaryReceipt.groupBy({
+    by: ["workflowId"],
+    where: {
+      workflow: { client: { accountId: account.id } },
+      receivedAt: { gte: thirtyDaysAgo },
+    },
+    _count: { id: true },
+  });
+  const receiptByWorkflow = new Map(
+    receiptCounts.map((r) => [r.workflowId, r._count.id]),
+  );
+
+  // Per-client receipt total
+  function clientReceiptCount(clientId: string): number {
+    const c = clients.find((x) => x.id === clientId);
+    if (!c) return 0;
+    return c.workflows.reduce(
+      (s, w) => s + (receiptByWorkflow.get(w.id) ?? 0),
+      0,
+    );
+  }
+
+  // Longest quiet run across all clients (days since last incident)
+  const lastIncident = await prisma.incident.findFirst({
+    where: { workflow: { client: { accountId: account.id } } },
+    orderBy: { openedAt: "desc" },
+    select: { openedAt: true },
+  });
+  const quietDays = lastIncident
+    ? Math.floor(
+        (Date.now() - lastIncident.openedAt.getTime()) / (24 * 60 * 60 * 1000),
+      )
+    : null;
+
   return (
-    <main
-      style={{
-        maxWidth: "760px",
-        margin: "0 auto",
-        padding: "32px 24px 64px",
-        fontFamily: "var(--font-sans)",
-        color: "var(--ink)",
-      }}
-    >
-      <h1
+    <div style={{ padding: "30px 44px 0", minWidth: 0 }}>
+      {/* ── Header ── */}
+      <div
         style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "25px",
-          fontWeight: 500,
-          letterSpacing: "-.005em",
-          marginBottom: "28px",
+          display: "flex",
+          alignItems: "baseline",
+          gap: "18px",
+          marginBottom: "0",
         }}
       >
-        {account.name}
-      </h1>
-
-      <section style={{ marginBottom: "32px" }}>
-        <h2
+        <h1
           style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "8.5px",
-            letterSpacing: ".12em",
-            textTransform: "uppercase",
-            color: "var(--ink-2)",
-            marginBottom: "12px",
+            fontFamily: "var(--font-serif)",
+            fontSize: "25px",
+            fontWeight: 500,
+            letterSpacing: "-.005em",
           }}
         >
-          Add a client
-        </h2>
-        <AddClientForm />
-      </section>
+          Clients
+        </h1>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "baseline", gap: "20px" }}>
+          <span
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "10.5px",
+              color: "var(--ink-2)",
+            }}
+          >
+            Last 30 days
+          </span>
+          <AddClientForm inline />
+        </div>
+      </div>
 
-      <section>
-        {clients.length === 0 ? (
-          <p style={{ color: "var(--ink-2)", fontSize: "13px" }}>No clients yet.</p>
-        ) : (
-          clients.map((client) => (
+      {/* ── Pulse line ── */}
+      <div
+        style={{
+          margin: "30px 0 0",
+          paddingBottom: "22px",
+          borderBottom: "1px solid var(--hair)",
+        }}
+      >
+        {openIncidents.length > 0 ? (
+          <>
             <div
-              key={client.id}
               style={{
-                marginBottom: "28px",
-                paddingBottom: "28px",
-                borderBottom: "1px solid var(--hair)",
+                fontFamily: "var(--font-serif)",
+                fontSize: "23px",
+                fontWeight: 500,
+                color: "var(--amber-deep)",
+                display: "flex",
+                alignItems: "center",
+                gap: "11px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", gap: "12px", marginBottom: "12px" }}>
-                <h3
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "17px",
-                    fontWeight: 500,
-                  }}
-                >
-                  <Link
-                    href={`/dashboard/clients/${client.id}`}
-                    style={{ color: "var(--ink)", textDecoration: "none" }}
-                  >
-                    {client.name}
-                  </Link>
-                </h3>
-                {/* All-green status: no down workflows */}
-                {client.workflows.every((w) => w.status !== "down") &&
-                  client.workflows.length > 0 && (
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "9px",
-                        letterSpacing: ".08em",
-                        textTransform: "uppercase",
-                        color: "var(--green)",
-                      }}
-                    >
-                      all clear
-                    </span>
-                  )}
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "var(--amber)",
+                  flexShrink: 0,
+                }}
+              />
+              {openIncidents.length === 1
+                ? "One open incident."
+                : `${openIncidents.length} open incidents.`}
+            </div>
+            {openIncidents.slice(0, 2).map((i) => (
+              <div
+                key={i.id}
+                style={{
+                  fontSize: "13px",
+                  color: "var(--ink-2)",
+                  marginTop: "7px",
+                  paddingLeft: "19px",
+                }}
+              >
                 <Link
-                  href={`/dashboard/clients/${client.id}`}
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "9px",
-                    letterSpacing: ".06em",
-                    textTransform: "uppercase",
-                    color: "var(--ink-2)",
-                    textDecoration: "none",
-                  }}
+                  href={`/dashboard/incidents/${i.id}`}
+                  style={{ color: "var(--amber-deep)", textDecoration: "none" }}
                 >
-                  ledger →
+                  {i.clientName} · {i.workflowName} ·{" "}
+                  {i.source === "explicit_fail" ? "reported a failure" : "missed check-in"}{" "}
+                  {formatRelativeTime(i.openedAt)}
                 </Link>
               </div>
+            ))}
+          </>
+        ) : (
+          <>
+            <div
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "23px",
+                fontWeight: 500,
+                color: "var(--ink)",
+                display: "flex",
+                alignItems: "center",
+                gap: "11px",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: "var(--green)",
+                  flexShrink: 0,
+                }}
+              />
+              {clients.length === 0 ? "No clients yet." : "All clear."}
+            </div>
+            {quietDays !== null && (
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "var(--ink-2)",
+                  marginTop: "7px",
+                  paddingLeft: "19px",
+                }}
+              >
+                Quiet{quietDays > 0 ? ` · ${quietDays} days` : " · no incidents on record"}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
-              {client.workflows.length === 0 ? (
-                <p style={{ fontSize: "13px", color: "var(--ink-2)", marginBottom: "12px" }}>
-                  No workflows yet.
-                </p>
-              ) : (
-                <ul style={{ listStyle: "none", padding: 0, marginBottom: "12px" }}>
-                  {client.workflows.map((workflow) => {
-                    const openIncident = workflow.incidents[0] ?? null;
-                    const isDown = workflow.status === "down";
+      {/* ── Figures ── */}
+      <div
+        style={{
+          display: "flex",
+          gap: "34px",
+          margin: "20px 0 0",
+          paddingBottom: "16px",
+          borderBottom: "1px solid var(--hair-2)",
+        }}
+      >
+        {[
+          { v: clients.length, k: "clients" },
+          { v: totalWorkflows, k: "workflows watched" },
+          { v: pingCount30d.toLocaleString(), k: "check-ins · 30d" },
+          { v: incidentCount30d, k: "incidents · 30d" },
+        ].map(({ v, k }) => (
+          <div key={k}>
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "16px",
+                fontWeight: 500,
+              }}
+            >
+              {v}
+            </div>
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "8.5px",
+                letterSpacing: ".1em",
+                textTransform: "uppercase",
+                color: "var(--ink-2)",
+                marginTop: "3px",
+              }}
+            >
+              {k}
+            </div>
+          </div>
+        ))}
+      </div>
 
-                    return (
-                      <li
-                        key={workflow.id}
+      {/* ── Client list ── */}
+      {clients.length > 0 && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "20px 0 4px",
+              fontFamily: "var(--font-mono)",
+              fontSize: "9px",
+              letterSpacing: ".14em",
+              textTransform: "uppercase",
+              color: "var(--ink-2)",
+            }}
+          >
+            <span>The book</span>
+            <span>attention first</span>
+          </div>
+
+          {clients
+            .slice()
+            .sort((a, b) => {
+              // Open incidents first
+              const aDown = a.workflows.some((w) => w.status === "down");
+              const bDown = b.workflows.some((w) => w.status === "down");
+              if (aDown && !bDown) return -1;
+              if (!aDown && bDown) return 1;
+              return a.name.localeCompare(b.name);
+            })
+            .map((client) => {
+              const hasOpen = client.workflows.some((w) => w.status === "down");
+              const openWf = client.workflows.find((w) => w.status === "down");
+              const openInc = openWf?.incidents[0] ?? null;
+              const receipts30d = clientReceiptCount(client.id);
+
+              // Status line text
+              let statusText: string;
+              if (hasOpen && openInc) {
+                statusText = `${openWf!.name} · ${openInc.source === "explicit_fail" ? "reported a failure" : "missed check-in"} ${formatRelativeTime(openInc.openedAt)}`;
+              } else {
+                // Find last resolved incident for quiet run
+                statusText = "Quiet run";
+              }
+
+              return (
+                <Link
+                  key={client.id}
+                  href={`/dashboard/clients/${client.id}`}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                      padding: "15px 2px",
+                      borderBottom: "1px solid var(--hair-2)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {/* Tick */}
+                    <span
+                      style={{
+                        width: "3px",
+                        height: "30px",
+                        borderRadius: "2px",
+                        flexShrink: 0,
+                        background: hasOpen ? "var(--amber)" : "transparent",
+                      }}
+                    />
+
+                    {/* Name + status */}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
                         style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "4px",
-                          padding: "10px 12px",
-                          marginBottom: "6px",
-                          background: "var(--lift)",
-                          border: "1px solid var(--hair-2)",
-                          borderLeft: isDown
-                            ? "3px solid var(--amber)"
-                            : "1px solid var(--hair-2)",
-                          borderRadius: "6px",
-                          fontSize: "13px",
+                          fontFamily: "var(--font-serif)",
+                          fontSize: "15.5px",
+                          fontWeight: 500,
                         }}
                       >
-                        <div
+                        {client.name}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: "8px",
+                          fontSize: "12.5px",
+                          color: "var(--ink-2)",
+                          marginTop: "3px",
+                        }}
+                      >
+                        <span
                           style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                            gap: "8px",
+                            width: "5px",
+                            height: "5px",
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                            background: hasOpen ? "var(--amber)" : "var(--green)",
+                            position: "relative",
+                            top: "-2px",
                           }}
-                        >
-                          <span style={{ fontWeight: 500 }}>{workflow.name}</span>
-                          <span
-                            style={{
-                              fontFamily: "var(--font-mono)",
-                              fontSize: "9px",
-                              letterSpacing: ".08em",
-                              textTransform: "uppercase",
-                              color: isDown ? "var(--amber-deep)" : "var(--ink-2)",
-                            }}
-                          >
-                            {workflow.status}
-                          </span>
-                          <span style={{ color: "var(--ink-2)", fontSize: "12px" }}>
-                            every {workflow.expectedIntervalMinutes}m
-                          </span>
-                        </div>
+                        />
+                        <span style={{ color: hasOpen ? "var(--amber-deep)" : undefined }}>
+                          {statusText}
+                        </span>
+                      </div>
+                    </div>
 
-                        <div
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "10px",
-                            color: "var(--ink-2)",
-                          }}
-                        >
-                          Ping URL:{" "}
-                          <code style={{ color: "var(--pine)" }}>
-                            {baseUrl}/api/ping/{workflow.token}
-                          </code>
-                        </div>
+                    {/* Meta */}
+                    <div
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "10px",
+                        color: "var(--ink-2)",
+                        textAlign: "right",
+                        lineHeight: "1.8",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {client.workflows.length} workflow{client.workflows.length !== 1 ? "s" : ""}
+                      {receipts30d > 0 && (
+                        <>
+                          <br />
+                          {receipts30d} receipts · 30d
+                        </>
+                      )}
+                    </div>
 
-                        <div
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "10px",
-                            color: "var(--ink-2)",
-                          }}
-                        >
-                          Last ping:{" "}
-                          {workflow.lastPingAt
-                            ? formatRelativeTime(workflow.lastPingAt)
-                            : "never"}
-                        </div>
+                    {/* Chevron */}
+                    <span
+                      style={{
+                        color: "var(--ink-2)",
+                        fontSize: "10px",
+                        paddingLeft: "6px",
+                      }}
+                    >
+                      ▶
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+        </>
+      )}
 
-                        {/* Link to open incident if one exists */}
-                        {openIncident && (
-                          <div style={{ marginTop: "4px" }}>
-                            <Link
-                              href={`/dashboard/incidents/${openIncident.id}`}
-                              style={{
-                                fontFamily: "var(--font-mono)",
-                                fontSize: "10px",
-                                letterSpacing: ".06em",
-                                textTransform: "uppercase",
-                                color: "var(--amber-deep)",
-                                textDecoration: "underline",
-                                textUnderlineOffset: "3px",
-                              }}
-                            >
-                              {openIncident.source === "explicit_fail"
-                                ? "View failure →"
-                                : "View incident →"}
-                            </Link>
-                          </div>
-                        )}
+      {/* ── Add client (bottom, subtle) ── */}
+      <div style={{ padding: "24px 0 40px" }}>
+        <AddClientForm />
+      </div>
 
-                        {workflow.status !== "down" && (
-                          <div style={{ marginTop: "4px" }}>
-                            <SimulateFailureForm workflowId={workflow.id} />
-                          </div>
-                        )}
-
-                        {/* Canary section */}
-                        <div
-                          style={{
-                            marginTop: "6px",
-                            paddingTop: "6px",
-                            borderTop: "1px solid var(--hair)",
-                          }}
-                        >
-                          {workflow.canaryAddress ? (
-                            <>
-                              <div
-                                style={{
-                                  fontFamily: "var(--font-mono)",
-                                  fontSize: "10px",
-                                  color: "var(--ink-2)",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                <span style={{ color: "var(--pine)" }}>canary ✓</span>{" "}
-                                add to send list:{" "}
-                                <code style={{ color: "var(--pine)" }}>
-                                  {workflow.canaryAddress}
-                                </code>
-                              </div>
-                              {workflow.expectations.length > 0 ? (
-                                <div
-                                  style={{
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: "9px",
-                                    color: "var(--ink-2)",
-                                  }}
-                                >
-                                  {workflow.expectations.map((e) => (
-                                    <span key={e.id}>
-                                      {e.rule} · ±{e.windowMins}m
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <AddExpectationForm workflowId={workflow.id} />
-                              )}
-                            </>
-                          ) : (
-                            <EnableCanaryForm workflowId={workflow.id} />
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-
-              <AddWorkflowForm clientId={client.id} />
-            </div>
-          ))
-        )}
-      </section>
-    </main>
+    </div>
   );
 }

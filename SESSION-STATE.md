@@ -1,7 +1,7 @@
 # Euclio — Session State
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`.
-> Last reconciled: 2026-08-03 (M5.2: canary sensor complete).
+> Last reconciled: 2026-08-03 (UI shell + design system connected).
 
 ## Milestone summary
 
@@ -13,6 +13,7 @@
 - **M5 facts + note view** — DONE. `lib/facts.ts` (pure function, both fact shapes, timezone-aware, zero deps). `lib/__tests__/facts.test.ts` (102 tests: both shapes, duration formatting, timezone, banned words × 4 fixtures, structural firewall). Incident detail page at `/dashboard/incidents/[id]`: facts lines, event timeline, freelancer-only diagnostic panel (errorText, amber border, "redacted · ttl 30d"), mark-resolved form with optional note, simulate-failure still works. Dashboard updated with incident links (amber "View incident →" on down workflows). Design system adopted globally: Spectral/Instrument Sans/IBM Plex Mono fonts, paper/lift/rail/ink/amber/green/hair tokens in `globals.css`. `resolveIncident` server action added to `actions.ts`.
 - **M5.5 ledger + answer view** — DONE. Per-client ledger at `/dashboard/clients/[id]`: summary figures (incidents/30d, check-ins/30d, longest quiet run), month-grouped incident cards with facts lines + notes, all-green banner for quiet clients. Compose flow at `/dashboard/clients/[id]/compose/[incidentId]`: four-slot scaffold (slot 1 pre-filled from facts, slot 2 mandatory-empty, slot 3 optional, slot 4 defaults to "Nothing — just keeping you in the loop."), plain-text preview, copy-to-clipboard + mark-sent. `createClientUpdate` server action (ownership-scoped, `generatePublicSlug()`, `coversFrom/To` from incident). No-login receipt page at `/u/[publicSlug]`: plain text body + minimal footer, no Euclio branding. Dashboard home updated with client ledger links + "all clear" status badge. TypeScript clean (tsc --noEmit exit 0). No schema changes.
 - **M5.2 canary sensor** — DONE. Schema: `CanaryExpectation` + `CanaryReceipt` models, `Workflow.canaryAddress` (unique), `Incident.sendsDue`/`sendsArrived` columns. Migration `20260803183344_add_canary`. `lib/canary-gap.ts`: pure `computeGap()` function — counts expected occurrences in incident window (daily/weekdays rules, timezone-aware), counts matched post-recovery receipts. `lib/__tests__/canary-gap.test.ts`: 14/14 tests (daily, weekdays, weekend skip, Fri–Mon, sendsArrived filtering, unmatched receipts, unrecognised rule, America/New_York timezone). `POST /api/canary/inbound`: Svix-signed webhook, subject-hash-only storage (body discarded), expectation matching, gap recompute on open incidents. `enableCanary` + `createExpectation` server actions (ownership-scoped). Dashboard: "enable canary →" button per workflow, canary address display + expectation list once enabled. Ledger: "N of M sends verified at canary" line on incident cards when `sendsDue > 0`. `RESEND_INBOUND_SECRET` added to `.env.example`. 130/130 tests pass. TypeScript clean.
+- **UI shell + design system** — DONE. `app/dashboard/layout.tsx`: 64px dark rail sidebar with Euclio logo, client avatar buttons (initials + amber dot on open incident), gear placeholder, user avatar. All dashboard pages now live inside the shell. Home page (`/dashboard`) rebuilt to match `euclio-home-view.html`: pulse line (amber open-incident summary or green all-clear), figures row (clients/workflows/check-ins/incidents), compact client rows with tick/status/receipts/chevron, sorted by attention (open incidents first). Workflow setup page at `/dashboard/clients/[id]/workflows/[wfId]`: breadcrumb, snippet tabs (n8n/Make/Zapier/Node/Python/curl/Coding agent) with copy button, /fail section, simulate-failure, listening status, canary config. Ledger upgraded to match `euclio-answer-view.html`: two-column events+receipts grid inside each entry, "your read" slot, compose/detail actions. `AddClientForm`, `AddWorkflowForm` rewritten with design system styles. 130/130 tests pass. TypeScript clean.
 
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
@@ -38,6 +39,7 @@
 - [x] **M5: facts.ts** — done. Pure function, both shapes, timezone-aware, 102 tests pass including banned-words fixture and structural firewall.
 - [x] **M5: Incident detail page** — done. `/dashboard/incidents/[id]`, facts lines, event timeline, diagnostic panel, resolve form, simulate-failure.
 - [x] **M5: Design system** — done. Spectral/Instrument Sans/IBM Plex Mono + paper/lift/rail/ink/amber/green/hair tokens adopted globally in `globals.css` + `layout.tsx`.
+- [x] **UI shell** — done. 64px rail sidebar, home page, workflow setup page, ledger two-column grid. All pages match design specs.
 
 ## Fixes applied this session (sanity pass)
 
@@ -65,3 +67,5 @@
 - `prisma migrate status` → up to date against Neon. ✓
 - `lib/facts.ts` → pure function, no DB imports, no errorText reference in code. ✓
 - `lib/__tests__/facts.test.ts` → 102 tests, all pass in isolation. ✓
+- `app/dashboard/layout.tsx` → 64px rail sidebar, client avatars, logo, user avatar. ✓
+- `app/dashboard/clients/[id]/workflows/[wfId]/page.tsx` → snippet tabs, canary config, listening status. ✓
