@@ -12,19 +12,19 @@
 - **M4 alert email** — DONE. `lib/mailer.ts` (Resend wrapper, degrades gracefully on missing key). `Incident.alertedAt` column added (migration `20260802230145_add_incident_alerted_at`). Alert wired into watcher (heartbeat open + retry on each tick for unalerted open incidents) and `/fail` route (explicit_fail open). Idempotent per incident via `alertedAt`. Email content: facts only — client name, workflow name, "missed check-in at <time>" or "reported a failure at <time>", dashboard link. No errorText, no severity words. 14/14 tests pass (`worker/__tests__/alert.test.ts` + existing suites).
 - **M5 facts + note view** — DONE. `lib/facts.ts` (pure function, both fact shapes, timezone-aware, zero deps). `lib/__tests__/facts.test.ts` (102 tests: both shapes, duration formatting, timezone, banned words × 4 fixtures, structural firewall). Incident detail page at `/dashboard/incidents/[id]`: facts lines, event timeline, freelancer-only diagnostic panel (errorText, amber border, "redacted · ttl 30d"), mark-resolved form with optional note, simulate-failure still works. Dashboard updated with incident links (amber "View incident →" on down workflows). Design system adopted globally: Spectral/Instrument Sans/IBM Plex Mono fonts, paper/lift/rail/ink/amber/green/hair tokens in `globals.css`. `resolveIncident` server action added to `actions.ts`.
 
-> **Step 0 — M4 Railway verification:** PENDING manual check. Simulate a missed check-in and fire /fail; confirm exactly one email arrives for each. Record result here.
+> **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
 > Full milestone detail archived in `docs/session-history.md`.
 
 ## Open threads / decisions needed
 
-- [ ] **Step 0 — M4 Railway live verification**: simulate a missed check-in and fire /fail on Railway; confirm exactly one email per incident. Update this entry with result.
+- [x] ~~**Step 0 — M4 Railway live verification**~~ — VERIFIED 2026-08-03. Both email shapes confirmed live.
+- [x] ~~**RESEND_FROM_ADDRESS**~~ — set in Railway (web + worker). `euclio.io` domain verified in Resend.
+- [x] ~~**APP_URL**~~ — set in Railway (web + worker).
 - [ ] **Clerk PRODUCTION instance** (before real launch): current keys are a Clerk DEV instance. Needs own keys + custom Google OAuth credentials in Railway env.
 - [ ] **Rebrand Google OAuth consent → "Euclio"** (deferred to production-instance setup).
 - [ ] **Minor — pg SSL mode warning:** `sslmode=require` semantics change in pg v9. No action now; revisit if pg is bumped.
 - [ ] **Multi-machine onboarding bootstrap** (still open): manual Railway CLI + `railway variables` pull works but isn't scripted. Worth a bootstrap script before a third machine needs onboarding.
-- [ ] **RESEND_FROM_ADDRESS**: `alerts@euclio.io` must be a verified sender in the Resend account before live alerts work. Set `RESEND_FROM_ADDRESS` in Railway env to a verified address, or verify `euclio.io` domain in Resend.
-- [ ] **APP_URL**: set in Railway env for the web service so alert email dashboard links are correct.
 - [ ] **alert.test.ts test #4 cross-file flake**: when the full suite runs, test #4 ("Throwing mailer: reconcile loop continues") occasionally gets 2 incidents instead of 1 for workflow1 because `reconcile()` processes ALL workflows in the DB and picks up data from other test files. Passes in isolation (`npm test -- worker/__tests__/alert.test.ts`). Fix: scope the test's `reconcile()` call to only the test's own workflows, or add a `beforeEach` that deletes all workflows outside the test account. Low priority — doesn't affect correctness of the watcher logic.
 - [x] ~~GET handler on `/api/ping/[token]`~~ — added; GET delegates to POST.
 - [x] **M2: `/api/ping/[token]/fail` route** — done. Opens incident immediately (no debounce), with optional scrubbed error text. Includes re-fail suppression (6-hour window). Supports both GET and POST for consistency with main ping endpoint.
