@@ -3,43 +3,52 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
+import { deriveStatus } from "@/lib/status";
+import { Chip } from "@/components/ui/Chip";
+import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 
 /**
  * Home — "Clients" view.
  * Matches euclio-home-view.html:
- *   - Pulse line: open incident summary (amber) or quiet state (green)
- *   - Figures row: clients / workflows / receipts 30d / incidents 30d
- *   - Client list rows: tick / name+status / workflow count + receipts
+ *   - Figures row
+ *   - Two-column grid: "The book" panel (left) + "Needs attention" + "Latest entries" (right)
  */
 export default async function DashboardPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
   const account = await getOrCreateAccountForCurrentUser();
-
+  const tz = account.timezone ?? "UTC";
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // Full client + workflow + incident data for the home view
+  // Full client + workflow + incident data
   const clients = await prisma.client.findMany({
     where: { accountId: account.id, archivedAt: null },
     orderBy: { name: "asc" },
     select: {
       id: true,
       name: true,
+      createdAt: true,
       workflows: {
         where: { archivedAt: null },
         select: {
           id: true,
           name: true,
           status: true,
+          createdAt: true,
           lastPingAt: true,
           expectedIntervalMinutes: true,
           incidents: {
-            where: { status: "open" },
             orderBy: { openedAt: "desc" },
             take: 1,
-            select: { id: true, source: true, openedAt: true },
+            select: {
+              id: true,
+              source: true,
+              status: true,
+              openedAt: true,
+              resolvedAt: true,
+            },
           },
         },
       },
@@ -56,26 +65,14 @@ export default async function DashboardPage() {
     },
   });
 
-  const pingCount30d = await prisma.ping.count({
+  const receiptCount30d = await prisma.canaryReceipt.count({
     where: {
       workflow: { client: { accountId: account.id } },
       receivedAt: { gte: thirtyDaysAgo },
     },
   });
 
-  // Open incidents across all clients (for pulse line)
-  const openIncidents = clients.flatMap((c) =>
-    c.workflows.flatMap((w) =>
-      w.incidents.map((i) => ({
-        ...i,
-        workflowName: w.name,
-        clientName: c.name,
-        openedAt: i.openedAt,
-      })),
-    ),
-  );
-
-  // Per-client receipt counts (30d) for the row meta column
+  // Per-client receipt counts (30d)
   const receiptCounts = await prisma.canaryReceipt.groupBy({
     by: ["workflowId"],
     where: {
@@ -88,7 +85,6 @@ export default async function DashboardPage() {
     receiptCounts.map((r) => [r.workflowId, r._count.id]),
   );
 
-  // Per-client receipt total
   function clientReceiptCount(clientId: string): number {
     const c = clients.find((x) => x.id === clientId);
     if (!c) return 0;
@@ -98,184 +94,202 @@ export default async function DashboardPage() {
     );
   }
 
-  // Longest quiet run across all clients (days since last incident)
-  const lastIncident = await prisma.incident.findFirst({
+  // Derive status for each client (worst workflow wins)
+  type ClientRow = {
+    id: string;
+    name: string;
+    statusKind: "open" | "resolved" | "quiet";
+    statusChip: string;
+    statusSub: string;
+    workflows: number;
+    receipts30d: number;
+    openIncidentId?: string;
+    openedAt?: Date;
+  };
+
+  const clientRows: ClientRow[] = clients.map((client) => {
+    const receipts30d = clientReceiptCount(client.id);
+
+    // Find worst workflow
+    const openWf = client.workflows.find(
+      (w) => w.incidents[0]?.status === "open",
+    );
+    const resolvedWf = client.workflows.find(
+      (w) => w.incidents[0]?.status === "resolved",
+    );
+
+    let statusKind: "open" | "resolved" | "quiet" = "quiet";
+    let statusChip = "";
+    let statusSub = "";
+    let openIncidentId: string | undefined;
+    let openedAt: Date | undefined;
+
+    if (openWf) {
+      const inc = openWf.incidents[0];
+      const s = deriveStatus({
+        hasOpenIncident: true,
+        openedAt: inc.openedAt,
+        createdAt: openWf.createdAt,
+        timezone: tz,
+      });
+      statusKind = "open";
+      statusChip = s.chip;
+      statusSub = `${openWf.name} · ${inc.source === "explicit_fail" ? "reported a failure" : "missed check-in"} ${formatRelativeTime(inc.openedAt)}`;
+      openIncidentId = inc.id;
+      openedAt = inc.openedAt;
+    } else if (resolvedWf) {
+      const inc = resolvedWf.incidents[0];
+      const s = deriveStatus({
+        hasOpenIncident: false,
+        lastResolvedAt: inc.resolvedAt,
+        createdAt: resolvedWf.createdAt,
+        timezone: tz,
+      });
+      statusKind = "resolved";
+      statusChip = s.chip;
+      statusSub = `${resolvedWf.name} · resolved`;
+    } else {
+      // All quiet — use the workflow with the most recent ping
+      const anyWf = client.workflows[0];
+      if (anyWf) {
+        const s = deriveStatus({
+          hasOpenIncident: false,
+          createdAt: anyWf.createdAt,
+          timezone: tz,
+        });
+        statusKind = "quiet";
+        statusChip = s.chip;
+        statusSub = anyWf.lastPingAt
+          ? `Last check-in ${formatRelativeTime(anyWf.lastPingAt)}`
+          : "No check-ins yet";
+      } else {
+        statusChip = "QUIET";
+        statusSub = "No workflows";
+      }
+    }
+
+    return {
+      id: client.id,
+      name: client.name,
+      statusKind,
+      statusChip,
+      statusSub,
+      workflows: client.workflows.length,
+      receipts30d,
+      openIncidentId,
+      openedAt,
+    };
+  });
+
+  // Sort: open first, then resolved, then quiet; alpha within each group
+  clientRows.sort((a, b) => {
+    const order = { open: 0, resolved: 1, quiet: 2 };
+    const diff = order[a.statusKind] - order[b.statusKind];
+    if (diff !== 0) return diff;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Open incidents for "Needs attention" panel
+  const openRows = clientRows.filter((r) => r.statusKind === "open");
+
+  // Latest entries feed (recent incidents across all clients)
+  const latestIncidents = await prisma.incident.findMany({
     where: { workflow: { client: { accountId: account.id } } },
     orderBy: { openedAt: "desc" },
-    select: { openedAt: true },
+    take: 6,
+    select: {
+      id: true,
+      source: true,
+      status: true,
+      openedAt: true,
+      resolvedAt: true,
+      sendsDue: true,
+      sendsArrived: true,
+      workflow: {
+        select: {
+          name: true,
+          client: { select: { id: true, name: true } },
+        },
+      },
+    },
   });
-  const quietDays = lastIncident
-    ? Math.floor(
-        (Date.now() - lastIncident.openedAt.getTime()) / (24 * 60 * 60 * 1000),
-      )
-    : null;
+
+  function formatEntryTime(date: Date): string {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    if (diffDays === 0) {
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+        .format(date)
+        .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+    }
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
 
   return (
-    <div style={{ padding: "30px 44px 0", minWidth: 0 }}>
+    <div style={{ padding: "26px 40px 0", minWidth: 0 }}>
       {/* ── Header ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: "18px",
-          marginBottom: "0",
-        }}
-      >
-        <h1
+      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        <span
           style={{
             fontFamily: "var(--font-serif)",
-            fontSize: "25px",
+            fontSize: "24px",
             fontWeight: 500,
-            letterSpacing: "-.005em",
           }}
         >
           Clients
-        </h1>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "baseline", gap: "20px" }}>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "10.5px",
-              color: "var(--ink-2)",
-            }}
-          >
-            Last 30 days
-          </span>
+        </span>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
           <Link
             href="/dashboard/clients/new"
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: "9px",
+              fontSize: "10px",
               letterSpacing: ".08em",
               textTransform: "uppercase",
-              color: "var(--pine)",
+              borderRadius: "999px",
+              padding: "8px 16px",
+              border: "none",
+              background: "var(--pine)",
+              color: "var(--rail-text)",
               textDecoration: "none",
             }}
           >
-            + add client
+            + Add client
           </Link>
         </div>
       </div>
 
-      {/* ── Pulse line ── */}
-      <div
-        style={{
-          margin: "30px 0 0",
-          paddingBottom: "22px",
-          borderBottom: "1px solid var(--hair)",
-        }}
-      >
-        {openIncidents.length > 0 ? (
-          <>
-            <div
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "23px",
-                fontWeight: 500,
-                color: "var(--amber-deep)",
-                display: "flex",
-                alignItems: "center",
-                gap: "11px",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  background: "var(--amber)",
-                  flexShrink: 0,
-                }}
-              />
-              {openIncidents.length === 1
-                ? "One open incident."
-                : `${openIncidents.length} open incidents.`}
-            </div>
-            {openIncidents.slice(0, 2).map((i) => (
-              <div
-                key={i.id}
-                style={{
-                  fontSize: "13px",
-                  color: "var(--ink-2)",
-                  marginTop: "7px",
-                  paddingLeft: "19px",
-                }}
-              >
-                <Link
-                  href={`/dashboard/incidents/${i.id}`}
-                  style={{ color: "var(--amber-deep)", textDecoration: "none" }}
-                >
-                  {i.clientName} · {i.workflowName} ·{" "}
-                  {i.source === "explicit_fail" ? "reported a failure" : "missed check-in"}{" "}
-                  {formatRelativeTime(i.openedAt)}
-                </Link>
-              </div>
-            ))}
-          </>
-        ) : (
-          <>
-            <div
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "23px",
-                fontWeight: 500,
-                color: "var(--ink)",
-                display: "flex",
-                alignItems: "center",
-                gap: "11px",
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  background: "var(--green)",
-                  flexShrink: 0,
-                }}
-              />
-              {clients.length === 0 ? "No clients yet." : "All clear."}
-            </div>
-            {quietDays !== null && (
-              <div
-                style={{
-                  fontSize: "13px",
-                  color: "var(--ink-2)",
-                  marginTop: "7px",
-                  paddingLeft: "19px",
-                }}
-              >
-                Quiet{quietDays > 0 ? ` · ${quietDays} days` : " · no incidents on record"}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
       {/* ── Figures ── */}
-      <div
-        style={{
-          display: "flex",
-          gap: "34px",
-          margin: "20px 0 0",
-          paddingBottom: "16px",
-          borderBottom: "1px solid var(--hair-2)",
-        }}
-      >
+      <div style={{ display: "flex", gap: "34px", margin: "18px 0 16px" }}>
         {[
           { v: clients.length, k: "clients" },
-          { v: totalWorkflows, k: "workflows watched" },
-          { v: pingCount30d.toLocaleString(), k: "check-ins · 30d" },
+          { v: totalWorkflows, k: "workflows" },
+          { v: receiptCount30d.toLocaleString(), k: "receipts · 30d" },
           { v: incidentCount30d, k: "incidents · 30d" },
         ].map(({ v, k }) => (
           <div key={k}>
             <div
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: "16px",
-                fontWeight: 500,
+                fontSize: "15px",
+                fontWeight: 600,
               }}
             >
               {v}
@@ -296,169 +310,323 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* ── Client list ── */}
-      {clients.length > 0 && (
-        <>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              padding: "20px 0 4px",
-              fontFamily: "var(--font-mono)",
-              fontSize: "9px",
-              letterSpacing: ".14em",
-              textTransform: "uppercase",
-              color: "var(--ink-2)",
-            }}
-          >
-            <span>The book</span>
-            <span>attention first</span>
-          </div>
+      {/* ── Two-column grid ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.62fr 1fr",
+          gap: "14px",
+          paddingBottom: "40px",
+        }}
+      >
+        {/* ── Left: The book ── */}
+        <div>
+          <Panel>
+            <PanelHeader
+              label="The book"
+              count={`${clients.length} clients`}
+              right="sorted: status ▾"
+            />
 
-          {clients
-            .slice()
-            .sort((a, b) => {
-              // Open incidents first
-              const aDown = a.workflows.some((w) => w.status === "down");
-              const bDown = b.workflows.some((w) => w.status === "down");
-              if (aDown && !bDown) return -1;
-              if (!aDown && bDown) return 1;
-              return a.name.localeCompare(b.name);
-            })
-            .map((client) => {
-              const hasOpen = client.workflows.some((w) => w.status === "down");
-              const openWf = client.workflows.find((w) => w.status === "down");
-              const openInc = openWf?.incidents[0] ?? null;
-              const receipts30d = clientReceiptCount(client.id);
+            {/* Table header */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 168px 74px 92px 16px",
+                gap: "14px",
+                alignItems: "center",
+                padding: "10px 16px 7px",
+                borderBottom: "1px solid var(--hair)",
+              }}
+            >
+              {["Client", "Status", "Workflows", "Receipts · 30d", ""].map(
+                (h, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: "8px",
+                      letterSpacing: ".12em",
+                      textTransform: "uppercase",
+                      color: "var(--ink-2)",
+                      textAlign: i >= 2 && i < 4 ? "right" : "left",
+                    }}
+                  >
+                    {h}
+                  </span>
+                ),
+              )}
+            </div>
 
-              // Status line text
-              let statusText: string;
-              if (hasOpen && openInc) {
-                statusText = `${openWf!.name} · ${openInc.source === "explicit_fail" ? "reported a failure" : "missed check-in"} ${formatRelativeTime(openInc.openedAt)}`;
-              } else {
-                // Find last resolved incident for quiet run
-                statusText = "Quiet run";
-              }
-
-              return (
+            {/* Rows */}
+            {clients.length === 0 ? (
+              <div
+                style={{
+                  padding: "20px 16px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "11px",
+                  color: "var(--ink-2)",
+                }}
+              >
+                No clients yet.{" "}
                 <Link
-                  key={client.id}
-                  href={`/dashboard/clients/${client.id}`}
+                  href="/dashboard/clients/new"
+                  style={{ color: "var(--pine)" }}
+                >
+                  Add one →
+                </Link>
+              </div>
+            ) : (
+              clientRows.map((row, i) => (
+                <Link
+                  key={row.id}
+                  href={`/dashboard/clients/${row.id}`}
                   style={{ textDecoration: "none", color: "inherit" }}
                 >
                   <div
                     style={{
-                      display: "flex",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 168px 74px 92px 16px",
+                      gap: "14px",
                       alignItems: "center",
-                      gap: "16px",
-                      padding: "15px 2px",
-                      borderBottom: "1px solid var(--hair-2)",
+                      padding: "13px 16px",
+                      borderBottom:
+                        i < clientRows.length - 1
+                          ? "1px solid var(--hair-2)"
+                          : "none",
                       cursor: "pointer",
+                      background:
+                        row.statusKind === "open"
+                          ? "rgba(176,133,46,.08)"
+                          : "transparent",
                     }}
                   >
-                    {/* Tick */}
-                    <span
-                      style={{
-                        width: "3px",
-                        height: "30px",
-                        borderRadius: "2px",
-                        flexShrink: 0,
-                        background: hasOpen ? "var(--amber)" : "transparent",
-                      }}
-                    />
-
-                    {/* Name + status */}
-                    <div style={{ minWidth: 0, flex: 1 }}>
+                    <div>
                       <div
                         style={{
                           fontFamily: "var(--font-serif)",
-                          fontSize: "15.5px",
+                          fontSize: "15px",
                           fontWeight: 500,
                         }}
                       >
-                        {client.name}
+                        {row.name}
                       </div>
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          gap: "8px",
-                          fontSize: "12.5px",
+                          fontSize: "12px",
                           color: "var(--ink-2)",
-                          marginTop: "3px",
+                          marginTop: "2px",
                         }}
                       >
-                        <span
-                          style={{
-                            width: "5px",
-                            height: "5px",
-                            borderRadius: "50%",
-                            flexShrink: 0,
-                            background: hasOpen ? "var(--amber)" : "var(--green)",
-                            position: "relative",
-                            top: "-2px",
-                          }}
-                        />
-                        <span style={{ color: hasOpen ? "var(--amber-deep)" : undefined }}>
-                          {statusText}
-                        </span>
+                        {row.statusSub}
                       </div>
                     </div>
-
-                    {/* Meta */}
-                    <div
+                    <span>
+                      <Chip kind={row.statusKind} label={row.statusChip} />
+                    </span>
+                    <span
                       style={{
                         fontFamily: "var(--font-mono)",
-                        fontSize: "10px",
-                        color: "var(--ink-2)",
+                        fontSize: "11px",
                         textAlign: "right",
-                        lineHeight: "1.8",
-                        flexShrink: 0,
                       }}
                     >
-                      {client.workflows.length} workflow{client.workflows.length !== 1 ? "s" : ""}
-                      {receipts30d > 0 && (
-                        <>
-                          <br />
-                          {receipts30d} receipts · 30d
-                        </>
-                      )}
-                    </div>
-
-                    {/* Chevron */}
+                      {row.workflows}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "11px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {row.receipts30d}
+                    </span>
                     <span
                       style={{
                         color: "var(--ink-2)",
                         fontSize: "10px",
-                        paddingLeft: "6px",
+                        textAlign: "right",
                       }}
                     >
                       ▶
                     </span>
                   </div>
                 </Link>
-              );
-            })}
-        </>
-      )}
+              ))
+            )}
 
-      {/* ── Add client (bottom, subtle) ── */}
-      <div style={{ padding: "24px 0 40px" }}>
-        <Link
-          href="/dashboard/clients/new"
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "9px",
-            letterSpacing: ".08em",
-            textTransform: "uppercase",
-            color: "var(--ink-2)",
-            textDecoration: "none",
-          }}
-        >
-          + add client →
-        </Link>
+            <div
+              style={{
+                padding: "10px 16px",
+                fontFamily: "var(--font-mono)",
+                fontSize: "8.5px",
+                color: "var(--ink-2)",
+                borderTop: "1px solid var(--hair-2)",
+              }}
+            >
+              Entries are appended, never edited.
+            </div>
+          </Panel>
+        </div>
+
+        {/* ── Right: Needs attention + Latest entries ── */}
+        <div>
+          {openRows.length > 0 ? (
+            <Panel loud style={{ marginBottom: "14px" }}>
+              <PanelHeader
+                label="Needs attention"
+                count={openRows.length}
+                right={new Intl.DateTimeFormat("en-US", {
+                  timeZone: tz,
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+                  .format(new Date())
+                  .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase())}
+              />
+              {openRows.slice(0, 3).map((row) => (
+                <div
+                  key={row.id}
+                  style={{ padding: "14px 16px 15px", cursor: "pointer" }}
+                >
+                  <div
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "17px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {row.name}
+                  </div>
+                  <div
+                    style={{
+                      color: "var(--amber-deep)",
+                      fontWeight: 500,
+                      fontSize: "12.5px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {row.statusSub}
+                  </div>
+                  {row.openIncidentId && (
+                    <Link
+                      href={`/dashboard/incidents/${row.openIncidentId}`}
+                      style={{
+                        display: "inline-block",
+                        marginTop: "12px",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "9.5px",
+                        letterSpacing: ".08em",
+                        textTransform: "uppercase",
+                        color: "var(--rail-text)",
+                        background: "var(--pine)",
+                        borderRadius: "999px",
+                        padding: "7px 14px",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Open incident ▶
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </Panel>
+          ) : (
+            <Panel style={{ marginBottom: "14px" }}>
+              <PanelHeader label="All clear" />
+              <div
+                style={{
+                  padding: "14px 16px 15px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "11px",
+                  color: "var(--ink-2)",
+                }}
+              >
+                {clients.length === 0
+                  ? "No clients yet."
+                  : "No open incidents."}
+              </div>
+            </Panel>
+          )}
+
+          {/* Latest entries */}
+          <Panel>
+            <PanelHeader label="Latest entries" />
+            {latestIncidents.length === 0 ? (
+              <div
+                style={{
+                  padding: "12px 16px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "11px",
+                  color: "var(--ink-2)",
+                }}
+              >
+                No entries yet.
+              </div>
+            ) : (
+              latestIncidents.map((inc, i) => (
+                <Link
+                  key={inc.id}
+                  href={`/dashboard/incidents/${inc.id}`}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "64px 1fr",
+                      gap: "12px",
+                      padding: "10px 16px",
+                      borderBottom:
+                        i < latestIncidents.length - 1
+                          ? "1px solid var(--hair-2)"
+                          : "none",
+                      fontSize: "12px",
+                      alignItems: "baseline",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "9.5px",
+                        color: "var(--ink-2)",
+                      }}
+                    >
+                      {formatEntryTime(inc.openedAt)}
+                    </span>
+                    <span>
+                      <strong
+                        style={{
+                          fontWeight: 500,
+                          color:
+                            inc.status === "open"
+                              ? "var(--amber-deep)"
+                              : "var(--ink)",
+                        }}
+                      >
+                        {inc.workflow.client.name}
+                      </strong>{" "}
+                      ·{" "}
+                      {inc.status === "open"
+                        ? inc.source === "explicit_fail"
+                          ? "reported a failure · open"
+                          : "missed check-in · open"
+                        : inc.sendsDue !== null && inc.sendsDue > 0
+                          ? `resolved · ${inc.sendsArrived ?? 0} of ${inc.sendsDue} received`
+                          : "resolved"}
+                    </span>
+                  </div>
+                </Link>
+              ))
+            )}
+          </Panel>
+        </div>
       </div>
-
     </div>
   );
 }

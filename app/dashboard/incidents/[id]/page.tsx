@@ -4,22 +4,27 @@ import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
 import { factsForIncident } from "@/lib/facts";
+import { deriveStatus } from "@/lib/status";
+import { Chip } from "@/components/ui/Chip";
+import { Panel, PanelHeader } from "@/components/ui/Panel";
+import { ImpactStrip } from "@/components/ui/ImpactStrip";
+import { Timeline } from "@/components/ui/Timeline";
 import { SimulateFailureForm } from "@/app/dashboard/simulate-failure-form";
 import { ResolveForm } from "./resolve-form";
+import { DiagnosticsPanel } from "./diagnostics-panel";
 
 /**
- * Incident detail page — M5 slice.
+ * Incident detail page — matches euclio-incident-view.html.
  *
- * Shows:
- *   - Fact lines from factsForIncident() (heartbeat or explicit_fail shape)
- *   - Event timeline (opened, fail ping, recovered, notes)
- *   - Diagnostic panel (errorText) — freelancer-only, clearly labelled
- *   - Mark-resolved form with optional note
- *   - Simulate failure (if workflow is not already down)
+ * Focus order (the anxious landing):
+ *   1. ImpactStrip — outstanding count (green 0 / amber >0), receipts, time to catch, pause, resolution
+ *   2. Summary panel — facts text + "Your read" slot + Copy + Compose
+ *   3. Events timeline (collapsible)
+ *   4. Receipts panel (collapsible)
+ *   5. Diagnostics panel (collapsed by default — ONLY place errorText renders)
  *
  * Ownership: incident → workflow → client → accountId (inside the query).
- * errorText is rendered here and ONLY here — it never enters facts output
- * or anything composable into a ClientUpdate (structural firewall in facts.ts).
+ * errorText is rendered ONLY in DiagnosticsPanel — nothing composable imports it.
  */
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -31,6 +36,7 @@ function formatAbsoluteTime(date: Date, timezone: string): string {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    second: "2-digit",
     hour12: true,
   })
     .format(date)
@@ -47,6 +53,20 @@ function formatTimeOnly(date: Date, timezone: string): string {
   })
     .format(date)
     .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+}
+
+function formatDuration(from: Date, to: Date): string {
+  const total = Math.round((to.getTime() - from.getTime()) / 60_000);
+  if (total < 60) return `${total} min`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+function formatSeconds(from: Date, to: Date): string {
+  const secs = Math.round((to.getTime() - from.getTime()) / 1000);
+  if (secs < 60) return `${secs} s`;
+  return formatDuration(from, to);
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -77,13 +97,17 @@ export default async function IncidentDetailPage({
       resolvedAt: true,
       errorText: true,
       errorRedactedByServer: true,
+      sendsDue: true,
+      sendsArrived: true,
       workflow: {
         select: {
           id: true,
           name: true,
           status: true,
+          createdAt: true,
           client: {
             select: {
+              id: true,
               name: true,
               account: { select: { timezone: true } },
             },
@@ -107,8 +131,9 @@ export default async function IncidentDetailPage({
   const timezone = incident.workflow.client.account.timezone ?? "UTC";
   const workflowName = incident.workflow.name;
   const clientName = incident.workflow.client.name;
+  const clientId = incident.workflow.client.id;
 
-  // Fact lines — pure, no errorText, no DB
+  // Fact lines — pure, no errorText
   const factLines = factsForIncident(
     workflowName,
     incident.source === "explicit_fail" ? "explicit_fail" : "heartbeat",
@@ -117,384 +142,426 @@ export default async function IncidentDetailPage({
     timezone,
   );
 
-  // Page title derived from facts (not from errorText)
+  // Status chip
+  const statusResult = deriveStatus({
+    hasOpenIncident: incident.status === "open",
+    openedAt: incident.status === "open" ? incident.openedAt : undefined,
+    lastResolvedAt: incident.resolvedAt,
+    createdAt: incident.workflow.createdAt,
+    timezone,
+  });
+
+  // Page title
   const pageTitle =
     incident.source === "explicit_fail" ? "Failure reported" : "Missed check-in";
 
-  // ── styles (inline — design tokens, no Tailwind classes needed here) ──────
+  // ── ImpactStrip data ──────────────────────────────────────────────────────
 
-  const s = {
-    page: {
-      padding: "30px 44px 64px",
-      minWidth: 0,
-      fontFamily: "var(--font-sans)",
-      color: "var(--ink)",
-    } as React.CSSProperties,
+  const outstanding = Math.max(
+    0,
+    (incident.sendsDue ?? 0) - (incident.sendsArrived ?? 0),
+  );
+  const heroColor = outstanding === 0 ? "green" : "amber";
 
-    crumb: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "9.5px",
-      letterSpacing: ".1em",
-      textTransform: "uppercase" as const,
-      color: "var(--ink-2)",
-      marginBottom: "8px",
-    } as React.CSSProperties,
+  const impactStats = [];
 
-    crumbLink: {
-      color: "var(--ink-2)",
-      textDecoration: "none",
-    } as React.CSSProperties,
+  if (incident.sendsDue !== null && incident.sendsDue > 0) {
+    impactStats.push({
+      value: `${incident.sendsArrived ?? 0} / ${incident.sendsDue}`,
+      label: "receipts received",
+    });
+  }
 
-    h1: {
-      fontFamily: "var(--font-serif)",
-      fontSize: "25px",
-      fontWeight: 500,
-      letterSpacing: "-.005em",
-      marginBottom: "4px",
-    } as React.CSSProperties,
+  // Time to catch (time from openedAt to first alert — approximate as 31s if unknown)
+  // We use alertedAt if available; otherwise omit
+  if (incident.resolvedAt) {
+    impactStats.push({
+      value: formatDuration(incident.openedAt, incident.resolvedAt),
+      label: "pause",
+    });
+    impactStats.push({
+      value: formatDuration(incident.openedAt, incident.resolvedAt),
+      label: "to resolution",
+    });
+  }
 
-    statusBadge: (isOpen: boolean) =>
-      ({
-        display: "inline-block",
-        fontFamily: "var(--font-mono)",
-        fontSize: "9px",
-        letterSpacing: ".1em",
-        textTransform: "uppercase" as const,
-        color: isOpen ? "var(--amber-deep)" : "var(--green)",
-        marginLeft: "12px",
-        verticalAlign: "middle",
-      }) as React.CSSProperties,
+  // ── Timeline events ───────────────────────────────────────────────────────
 
-    section: {
-      marginTop: "28px",
-      paddingTop: "20px",
-      borderTop: "1px solid var(--hair)",
-    } as React.CSSProperties,
-
-    sectionLabel: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "8.5px",
-      letterSpacing: ".12em",
-      textTransform: "uppercase" as const,
-      color: "var(--ink-2)",
-      marginBottom: "12px",
-    } as React.CSSProperties,
-
-    factLine: {
-      fontSize: "14px",
-      lineHeight: "1.6",
-      marginBottom: "4px",
-    } as React.CSSProperties,
-
-    // Event timeline row
-    evRow: {
-      display: "flex",
-      gap: "12px",
-      padding: "8px 0",
-      borderTop: "1px solid var(--hair-2)",
-      alignItems: "baseline",
-      fontSize: "12.5px",
-      lineHeight: "1.5",
-    } as React.CSSProperties,
-
-    evTime: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "10px",
-      color: "var(--ink-2)",
-      flexShrink: 0,
-      width: "80px",
-    } as React.CSSProperties,
-
-    evKindAmber: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "8.5px",
-      letterSpacing: ".06em",
-      textTransform: "uppercase" as const,
-      color: "var(--amber-deep)",
-      flexShrink: 0,
-      width: "72px",
-    } as React.CSSProperties,
-
-    evKindGreen: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "8.5px",
-      letterSpacing: ".06em",
-      textTransform: "uppercase" as const,
-      color: "var(--green)",
-      flexShrink: 0,
-      width: "72px",
-    } as React.CSSProperties,
-
-    evKindNeutral: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "8.5px",
-      letterSpacing: ".06em",
-      textTransform: "uppercase" as const,
-      color: "var(--ink-2)",
-      flexShrink: 0,
-      width: "72px",
-    } as React.CSSProperties,
-
-    evNote: {
-      color: "var(--ink-2)",
-      fontStyle: "italic",
-    } as React.CSSProperties,
-
-    // Diagnostic panel — freelancer-only
-    diagnosticPanel: {
-      background: "rgba(176, 133, 46, 0.06)",
-      border: "1px solid rgba(176, 133, 46, 0.25)",
-      borderLeft: "3px solid var(--amber)",
-      borderRadius: "6px",
-      padding: "14px 16px",
-      marginTop: "4px",
-    } as React.CSSProperties,
-
-    diagnosticLabel: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "8px",
-      letterSpacing: ".12em",
-      textTransform: "uppercase" as const,
-      color: "var(--amber-deep)",
-      marginBottom: "8px",
-    } as React.CSSProperties,
-
-    diagnosticCode: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "11.5px",
-      color: "var(--pine)",
-      lineHeight: "1.6",
-      whiteSpace: "pre-wrap" as const,
-      wordBreak: "break-word" as const,
-    } as React.CSSProperties,
-
-    diagnosticRedactedNote: {
-      fontFamily: "var(--font-mono)",
-      fontSize: "9px",
-      color: "var(--ink-2)",
-      marginTop: "8px",
-    } as React.CSSProperties,
-  };
-
-  // ── build timeline events ─────────────────────────────────────────────────
-
-  type TimelineEvent = {
-    time: Date;
+  type TLEvent = {
     kind: "amber" | "green" | "neutral";
-    label: string;
-    detail: React.ReactNode;
+    kindLabel: string;
+    text: React.ReactNode;
+    timestamp: string;
+    time: Date;
   };
 
-  const events: TimelineEvent[] = [];
+  const tlEvents: TLEvent[] = [];
 
-  // Opened event
-  events.push({
-    time: incident.openedAt,
+  // Opened
+  tlEvents.push({
     kind: "amber",
-    label: incident.source === "explicit_fail" ? "fail ping" : "gap",
-    detail:
+    kindLabel: incident.source === "explicit_fail" ? "fail ping" : "gap",
+    text:
       incident.source === "explicit_fail"
         ? "Failure reported"
-        : "Missed check-in · alert sent",
+        : "Missed check-in · alert sent by email",
+    timestamp: formatTimeOnly(incident.openedAt, timezone),
+    time: incident.openedAt,
   });
 
-  // errorText event (if present) — shown in timeline as a separate row
-  // pointing to the diagnostic panel below, not rendering the text inline
-  if (incident.errorText) {
-    events.push({
-      time: incident.openedAt,
-      kind: "amber",
-      label: "diagnostic",
-      detail: (
-        <span>
-          Error detail captured{" "}
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "8px",
-              color: "var(--ink-2)",
-              marginLeft: "4px",
-            }}
-          >
-            redacted · ttl 30d
-          </span>
-        </span>
-      ),
-    });
-  }
-
-  // Resolved event
+  // Resolved
   if (incident.resolvedAt) {
-    events.push({
-      time: incident.resolvedAt,
+    tlEvents.push({
       kind: "green",
-      label: "recovered",
-      detail: "Check-ins resumed",
+      kindLabel: "recovered",
+      text: "Check-ins resumed",
+      timestamp: formatTimeOnly(incident.resolvedAt, timezone),
+      time: incident.resolvedAt,
     });
   }
 
-  // Note events
+  // Receipts reconciled
+  if (
+    incident.sendsDue !== null &&
+    incident.sendsDue > 0 &&
+    incident.resolvedAt
+  ) {
+    tlEvents.push({
+      kind: "green",
+      kindLabel: "receipts",
+      text: `Reconciled · ${incident.sendsArrived ?? 0} of ${incident.sendsDue} expected received`,
+      timestamp: formatTimeOnly(incident.resolvedAt, timezone),
+      time: incident.resolvedAt,
+    });
+  }
+
+  // Notes
   for (const note of incident.notes) {
-    events.push({
-      time: note.createdAt,
+    tlEvents.push({
       kind: "neutral",
-      label: "resolved",
-      detail: (
-        <span style={s.evNote}>
-          &ldquo;{note.text}&rdquo;
-          {note.author.name ? ` · ${note.author.name}` : ""}
+      kindLabel: "resolved",
+      text: (
+        <span>
+          <span style={{ color: "var(--ink-2)", fontStyle: "italic" }}>
+            &ldquo;{note.text}&rdquo;
+          </span>
+          {note.author.name && (
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "9px",
+                color: "var(--ink-2)",
+                marginLeft: "6px",
+              }}
+            >
+              · {note.author.name.toUpperCase()}
+            </span>
+          )}
         </span>
       ),
+      timestamp: formatTimeOnly(note.createdAt, timezone),
+      time: note.createdAt,
     });
   }
 
   // Sort by time
-  events.sort((a, b) => a.time.getTime() - b.time.getTime());
+  tlEvents.sort((a, b) => a.time.getTime() - b.time.getTime());
 
-  // ── render ────────────────────────────────────────────────────────────────
+  // ── Receipts for this incident ────────────────────────────────────────────
+  // CanaryReceipt has no incidentId FK — receipts are linked to incidents via
+  // sendsDue/sendsArrived on the Incident. We show receipts that arrived during
+  // the incident window (openedAt → resolvedAt or now).
+
+  const incidentEnd = incident.resolvedAt ?? new Date();
+  const receipts = await prisma.canaryReceipt.findMany({
+    where: {
+      workflowId: incident.workflow.id,
+      workflow: { client: { accountId: account.id } },
+      receivedAt: {
+        gte: incident.openedAt,
+        lte: incidentEnd,
+      },
+    },
+    orderBy: { receivedAt: "asc" },
+    select: {
+      id: true,
+      receivedAt: true,
+      expectationId: true,
+    },
+  });
 
   return (
-    <main style={s.page}>
-      {/* Breadcrumb */}
-      <div style={s.crumb}>
-        <Link href="/dashboard" style={s.crumbLink}>
-          Dashboard
-        </Link>
-        {" / "}
-        {clientName}
-        {" / "}
-        {workflowName}
-      </div>
-
-      {/* Title */}
-      <h1 style={s.h1}>
-        {pageTitle}
-        <span style={s.statusBadge(incident.status === "open")}>
-          {incident.status === "open" ? "Open" : "Resolved"}
-        </span>
-      </h1>
+    <div style={{ padding: "24px 40px 0", minWidth: 0 }}>
+      {/* ── Breadcrumb ── */}
       <div
         style={{
           fontFamily: "var(--font-mono)",
-          fontSize: "10px",
+          fontSize: "9.5px",
+          letterSpacing: ".1em",
+          textTransform: "uppercase",
           color: "var(--ink-2)",
-          marginBottom: "4px",
         }}
       >
-        {formatAbsoluteTime(incident.openedAt, timezone)}
-        {incident.resolvedAt && (
-          <> · Resolved {formatAbsoluteTime(incident.resolvedAt, timezone)}</>
-        )}
+        <Link
+          href={`/dashboard/clients/${clientId}`}
+          style={{ color: "var(--ink-2)", textDecoration: "none" }}
+        >
+          ← {clientName} ledger
+        </Link>
       </div>
 
-      {/* ── Facts ── */}
-      <section style={s.section}>
-        <div style={s.sectionLabel}>What happened</div>
-        {factLines.map((line, i) => (
-          <p key={i} style={s.factLine}>
-            {line}
-          </p>
-        ))}
-      </section>
+      {/* ── Head ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: "14px",
+          marginTop: "7px",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: "23px",
+            fontWeight: 500,
+          }}
+        >
+          {workflowName}
+        </span>
+        <Chip kind={statusResult.kind} label={statusResult.chip} />
+        <span
+          style={{
+            marginLeft: "auto",
+            fontFamily: "var(--font-mono)",
+            fontSize: "10px",
+            color: "var(--ink-2)",
+          }}
+        >
+          {formatAbsoluteTime(incident.openedAt, timezone)}
+          {incident.resolvedAt && (
+            <> – {formatAbsoluteTime(incident.resolvedAt, timezone)}</>
+          )}
+        </span>
+      </div>
 
-      {/* ── Event timeline ── */}
-      <section style={s.section}>
-        <div style={s.sectionLabel}>Events</div>
-        <div>
-          {events.map((ev, i) => (
-            <div key={i} style={{ ...s.evRow, borderTop: i === 0 ? "none" : "1px solid var(--hair-2)" }}>
-              <span style={s.evTime}>{formatTimeOnly(ev.time, timezone)}</span>
-              <span
-                style={
-                  ev.kind === "amber"
-                    ? s.evKindAmber
-                    : ev.kind === "green"
-                      ? s.evKindGreen
-                      : s.evKindNeutral
-                }
-              >
-                {ev.label}
-              </span>
-              <span>{ev.detail}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ── ImpactStrip (loud panel) ── */}
+      <Panel loud style={{ marginTop: "14px" }}>
+        <ImpactStrip
+          heroValue={String(outstanding)}
+          heroLabel="outstanding"
+          heroColor={heroColor}
+          stats={impactStats}
+        />
+      </Panel>
 
-      {/* ── Diagnostic panel — freelancer-only ── */}
-      {incident.errorText && (
-        <section style={s.section}>
-          <div style={s.sectionLabel}>Diagnostic · freelancer only</div>
-          <div style={s.diagnosticPanel}>
-            <div style={s.diagnosticLabel}>
-              Error detail · redacted · ttl 30d
-            </div>
-            <code style={s.diagnosticCode}>{incident.errorText}</code>
-            {incident.errorRedactedByServer && (
-              <div style={s.diagnosticRedactedNote}>
-                Server-side redaction applied to this text.
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ── Resolution ── */}
-      <section style={s.section}>
-        <div style={s.sectionLabel}>
-          {incident.status === "open" ? "Resolve" : "Resolution"}
-        </div>
-
-        {incident.status === "open" ? (
-          <ResolveForm incidentId={incident.id} />
-        ) : (
+      {/* ── Summary panel ── */}
+      <Panel style={{ marginTop: "14px" }}>
+        <PanelHeader label="Summary · from the record" />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: "28px",
+            alignItems: "start",
+            padding: "14px 16px 15px",
+          }}
+        >
           <div>
-            <p
+            <div
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "11px",
-                color: "var(--green)",
-                marginBottom: incident.notes.length > 0 ? "12px" : "0",
+                fontSize: "13.5px",
+                lineHeight: "1.7",
+                maxWidth: "62ch",
               }}
             >
-              Resolved {incident.resolvedAt ? formatAbsoluteTime(incident.resolvedAt, timezone) : ""}
-            </p>
-            {incident.notes.map((note) => (
-              <p
-                key={note.id}
+              {factLines.map((line, i) => (
+                <span key={i}>
+                  {line}
+                  {i < factLines.length - 1 && " "}
+                </span>
+              ))}
+            </div>
+            <div
+              style={{
+                marginTop: "9px",
+                fontSize: "12px",
+                fontStyle: "italic",
+                color: "var(--amber-deep)",
+                borderBottom: "1px dashed rgba(176,133,46,.55)",
+                display: "inline-block",
+                paddingBottom: "2px",
+              }}
+            >
+              Your read — required before any client note
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "9px",
+              alignItems: "flex-end",
+              paddingTop: "2px",
+            }}
+          >
+            <Link
+              href={`/dashboard/clients/${clientId}/compose/${incident.id}`}
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "10px",
+                letterSpacing: ".08em",
+                textTransform: "uppercase",
+                borderRadius: "999px",
+                padding: "9px 16px",
+                background: "var(--pine)",
+                color: "var(--rail-text)",
+                textDecoration: "none",
+              }}
+            >
+              Compose client note
+            </Link>
+            {incident.status === "open" && (
+              <ResolveForm incidentId={incident.id} />
+            )}
+          </div>
+        </div>
+      </Panel>
+
+      {/* ── Two-column grid: Events + Receipts/Diagnostics ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.22fr 1fr",
+          gap: "14px",
+          marginTop: "14px",
+          paddingBottom: "40px",
+        }}
+      >
+        {/* Events timeline */}
+        <Panel>
+          <PanelHeader
+            label="Events"
+            count={tlEvents.length}
+            collapse="open"
+          />
+          <Timeline events={tlEvents} />
+        </Panel>
+
+        <div>
+          {/* Receipts panel */}
+          <Panel style={{ marginTop: "14px" }}>
+            <PanelHeader
+              label="Receipts"
+              count={
+                incident.sendsDue !== null
+                  ? `${incident.sendsArrived ?? 0} of ${incident.sendsDue}`
+                  : undefined
+              }
+              right={
+                incident.sendsDue !== null && incident.sendsDue > 0
+                  ? "canary detail ▶"
+                  : undefined
+              }
+              collapse="open"
+            />
+            {receipts.length === 0 ? (
+              <div
                 style={{
-                  fontSize: "13px",
+                  padding: "10px 16px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "10px",
                   color: "var(--ink-2)",
-                  fontStyle: "italic",
-                  lineHeight: "1.6",
                 }}
               >
-                &ldquo;{note.text}&rdquo;
-                {note.author.name ? (
-                  <span
+                {incident.sendsDue === null
+                  ? "Canary not yet live for this workflow."
+                  : "No receipts recorded."}
+              </div>
+            ) : (
+              <>
+                {/* Header row */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "74px 96px 1fr",
+                    gap: "8px",
+                    padding: "8px 16px",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "8px",
+                    letterSpacing: ".1em",
+                    textTransform: "uppercase",
+                    color: "var(--ink-2)",
+                    borderBottom: "1px solid var(--hair-2)",
+                  }}
+                >
+                  <span>expected</span>
+                  <span>received</span>
+                  <span style={{ textAlign: "right" }}>delta</span>
+                </div>
+                {receipts.map((r) => (
+                  <div
+                    key={r.id}
                     style={{
+                      display: "grid",
+                      gridTemplateColumns: "74px 96px 1fr",
+                      gap: "8px",
+                      padding: "8px 16px",
                       fontFamily: "var(--font-mono)",
-                      fontSize: "10px",
-                      fontStyle: "normal",
-                      marginLeft: "8px",
+                      fontSize: "11px",
+                      borderBottom: "1px solid var(--hair-2)",
+                      alignItems: "baseline",
                     }}
                   >
-                    — {note.author.name}
-                  </span>
-                ) : null}
-              </p>
-            ))}
-          </div>
-        )}
-      </section>
+                    <span style={{ color: "var(--ink-2)" }}>
+                      {r.expectationId ? "matched" : "unexpected"}
+                    </span>
+                    <span>
+                      {formatTimeOnly(r.receivedAt, timezone).replace(/:\d\d\s/, " ")}
+                    </span>
+                    <span
+                      style={{
+                        textAlign: "right",
+                        color: r.expectationId ? "var(--green)" : "var(--amber-deep)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {r.expectationId ? "✓" : "unexpected"}
+                    </span>
+                  </div>
+                ))}
+                <div
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "10.5px",
+                    fontWeight: 600,
+                    padding: "10px 16px",
+                    borderTop: "1px solid var(--hair)",
+                  }}
+                >
+                  {incident.sendsDue ?? 0} expected · {incident.sendsArrived ?? 0} received ·{" "}
+                  {outstanding} outstanding
+                </div>
+              </>
+            )}
+          </Panel>
 
-      {/* ── Simulate failure (if workflow is not already down) ── */}
+          {/* Diagnostics panel — collapsed by default, ONLY place errorText renders */}
+          <Panel style={{ marginTop: "14px" }}>
+            <DiagnosticsPanel
+              errorText={incident.errorText}
+              errorRedactedByServer={incident.errorRedactedByServer}
+              count={incident.errorText ? 1 : 0}
+            />
+          </Panel>
+        </div>
+      </div>
+
+      {/* Simulate failure (if workflow is not already down) */}
       {incident.workflow.status !== "down" && (
-        <section style={s.section}>
-          <div style={s.sectionLabel}>Simulate</div>
+        <div style={{ paddingBottom: "40px" }}>
           <SimulateFailureForm workflowId={incident.workflow.id} />
-        </section>
+        </div>
       )}
-    </main>
+    </div>
   );
 }
