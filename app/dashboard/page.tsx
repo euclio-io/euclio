@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
 import { getBaseUrl } from "@/lib/base-url";
@@ -33,67 +34,190 @@ export default async function DashboardPage() {
       workflows: {
         where: { archivedAt: null },
         orderBy: { name: "asc" },
+        include: {
+          // Include the most recent open incident so we can link to it.
+          incidents: {
+            where: { status: "open" },
+            orderBy: { openedAt: "desc" },
+            take: 1,
+            select: { id: true, source: true, openedAt: true },
+          },
+        },
       },
     },
   });
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-8">
-      <h1 className="text-2xl font-semibold tracking-tight">{account.name}</h1>
+    <main
+      style={{
+        maxWidth: "760px",
+        margin: "0 auto",
+        padding: "32px 24px 64px",
+        fontFamily: "var(--font-sans)",
+        color: "var(--ink)",
+      }}
+    >
+      <h1
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "25px",
+          fontWeight: 500,
+          letterSpacing: "-.005em",
+          marginBottom: "28px",
+        }}
+      >
+        {account.name}
+      </h1>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-medium">Add a client</h2>
+      <section style={{ marginBottom: "32px" }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "8.5px",
+            letterSpacing: ".12em",
+            textTransform: "uppercase",
+            color: "var(--ink-2)",
+            marginBottom: "12px",
+          }}
+        >
+          Add a client
+        </h2>
         <AddClientForm />
       </section>
 
-      <section className="flex flex-col gap-6">
+      <section>
         {clients.length === 0 ? (
-          <p className="text-zinc-600 dark:text-zinc-400">No clients yet.</p>
+          <p style={{ color: "var(--ink-2)", fontSize: "13px" }}>No clients yet.</p>
         ) : (
           clients.map((client) => (
             <div
               key={client.id}
-              className="flex flex-col gap-3 rounded border p-4 dark:border-zinc-700"
+              style={{
+                marginBottom: "28px",
+                paddingBottom: "28px",
+                borderBottom: "1px solid var(--hair)",
+              }}
             >
-              <h3 className="font-medium">{client.name}</h3>
+              <h3
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "17px",
+                  fontWeight: 500,
+                  marginBottom: "12px",
+                }}
+              >
+                {client.name}
+              </h3>
 
               {client.workflows.length === 0 ? (
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">No workflows yet.</p>
+                <p style={{ fontSize: "13px", color: "var(--ink-2)", marginBottom: "12px" }}>
+                  No workflows yet.
+                </p>
               ) : (
-                <ul className="flex flex-col gap-2">
-                  {client.workflows.map((workflow) => (
-                    <li
-                      key={workflow.id}
-                      className="flex flex-col gap-1 rounded border px-3 py-2 text-sm dark:border-zinc-800"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{workflow.name}</span>
-                        <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs uppercase tracking-wide text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
-                          {workflow.status}
-                        </span>
-                        <span className="text-zinc-500 dark:text-zinc-400">
-                          every {workflow.expectedIntervalMinutes}m
-                        </span>
-                      </div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                        Ping URL:{" "}
-                        <code className="text-zinc-600 dark:text-zinc-400">
-                          {baseUrl}/api/ping/{workflow.token}
-                        </code>
-                      </div>
-                      <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                        Last ping:{" "}
-                        {workflow.lastPingAt
-                          ? formatRelativeTime(workflow.lastPingAt)
-                          : "never"}
-                      </div>
-                      {workflow.status !== "down" && (
-                        <div className="mt-1">
-                          <SimulateFailureForm workflowId={workflow.id} />
+                <ul style={{ listStyle: "none", padding: 0, marginBottom: "12px" }}>
+                  {client.workflows.map((workflow) => {
+                    const openIncident = workflow.incidents[0] ?? null;
+                    const isDown = workflow.status === "down";
+
+                    return (
+                      <li
+                        key={workflow.id}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "4px",
+                          padding: "10px 12px",
+                          marginBottom: "6px",
+                          background: "var(--lift)",
+                          border: "1px solid var(--hair-2)",
+                          borderLeft: isDown
+                            ? "3px solid var(--amber)"
+                            : "1px solid var(--hair-2)",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span style={{ fontWeight: 500 }}>{workflow.name}</span>
+                          <span
+                            style={{
+                              fontFamily: "var(--font-mono)",
+                              fontSize: "9px",
+                              letterSpacing: ".08em",
+                              textTransform: "uppercase",
+                              color: isDown ? "var(--amber-deep)" : "var(--ink-2)",
+                            }}
+                          >
+                            {workflow.status}
+                          </span>
+                          <span style={{ color: "var(--ink-2)", fontSize: "12px" }}>
+                            every {workflow.expectedIntervalMinutes}m
+                          </span>
                         </div>
-                      )}
-                    </li>
-                  ))}
+
+                        <div
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "10px",
+                            color: "var(--ink-2)",
+                          }}
+                        >
+                          Ping URL:{" "}
+                          <code style={{ color: "var(--pine)" }}>
+                            {baseUrl}/api/ping/{workflow.token}
+                          </code>
+                        </div>
+
+                        <div
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "10px",
+                            color: "var(--ink-2)",
+                          }}
+                        >
+                          Last ping:{" "}
+                          {workflow.lastPingAt
+                            ? formatRelativeTime(workflow.lastPingAt)
+                            : "never"}
+                        </div>
+
+                        {/* Link to open incident if one exists */}
+                        {openIncident && (
+                          <div style={{ marginTop: "4px" }}>
+                            <Link
+                              href={`/dashboard/incidents/${openIncident.id}`}
+                              style={{
+                                fontFamily: "var(--font-mono)",
+                                fontSize: "10px",
+                                letterSpacing: ".06em",
+                                textTransform: "uppercase",
+                                color: "var(--amber-deep)",
+                                textDecoration: "underline",
+                                textUnderlineOffset: "3px",
+                              }}
+                            >
+                              {openIncident.source === "explicit_fail"
+                                ? "View failure →"
+                                : "View incident →"}
+                            </Link>
+                          </div>
+                        )}
+
+                        {workflow.status !== "down" && (
+                          <div style={{ marginTop: "4px" }}>
+                            <SimulateFailureForm workflowId={workflow.id} />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 

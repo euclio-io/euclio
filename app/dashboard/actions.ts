@@ -82,6 +82,65 @@ export async function createWorkflow(_prev: ActionState, formData: FormData): Pr
   return { error: null };
 }
 
+export async function resolveIncident(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const incidentId = String(formData.get("incidentId") ?? "");
+  const noteText = String(formData.get("noteText") ?? "").trim();
+
+  if (!incidentId) return { error: "Incident ID is required." };
+  if (noteText.length > 500) return { error: "Note must be 500 characters or fewer." };
+
+  // Ownership check: incident → workflow → client → accountId.
+  // The tenant boundary is inside the query — never a follow-up JS check.
+  const incident = await prisma.incident.findFirst({
+    where: {
+      id: incidentId,
+      status: "open",
+      workflow: { client: { accountId: account.id } },
+    },
+    select: {
+      id: true,
+      workflowId: true,
+      workflow: { select: { client: { select: { id: true } } } },
+    },
+  });
+  if (!incident) return { error: "Incident not found or already resolved." };
+
+  // Resolve the incident and optionally attach a note, in a transaction.
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.incident.update({
+      where: { id: incident.id },
+      data: { status: "resolved", resolvedAt: now },
+    });
+    if (noteText) {
+      // Look up the User row for this Clerk user (needed for authorUserId).
+      const user = await tx.user.findFirst({
+        where: { clerkUserId: userId, accountId: account.id },
+        select: { id: true },
+      });
+      if (user) {
+        await tx.note.create({
+          data: {
+            accountId: account.id,
+            authorUserId: user.id,
+            incidentId: incident.id,
+            text: noteText,
+          },
+        });
+      }
+    }
+  });
+
+  logger.info("incident.resolved", { accountId: account.id, incidentId: incident.id });
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/incidents/${incident.id}`);
+  return { error: null };
+}
+
 export async function simulateFailure(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
