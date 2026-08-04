@@ -5,25 +5,23 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { deriveStatus } from "@/lib/status";
-import { Chip } from "@/components/ui/Chip";
-import { Panel, PanelHeader } from "@/components/ui/Panel";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, ChevronRight } from "@/components/ui/Card";
 import { AddWorkflowForm } from "@/app/dashboard/add-workflow-form";
 
 /**
- * Client ledger — matches euclio-client-view.html.
+ * Client ledger — matches euclio-client-view.html (v6 design system).
  *
  * Layout:
- *   - Header: client name + "Ledger · kept since <date>" + search/filter/Share receipt
- *   - Figures row: receipts 30d / check-ins 30d / incidents 30d / longest quiet run
- *   - Month bar: year + prev/next + month pills (amber tick on months with incidents)
- *   - Two-column grid:
- *       Left: Register panel (compact incident entries + quiet-run rows + canary event rows)
- *       Right: Workflows panel (chip + canary on/off + ▶) + Record panel
+ *   Header: client name + "Ledger · kept since <date>" + search/filter/Share receipt
+ *   Stat cards grid (4 cards)
+ *   Month bar: year + prev/next + month pills (amber tick on months with incidents)
+ *   Two-column grid:
+ *     Left: Register card (compact incident entries + quiet-run rows + canary event rows)
+ *     Right: Workflows card (badge + canary on/off + chevron) + Record card
  *
  * Ownership: all queries scoped by accountId inside the where clause.
  */
-
-// ── helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -41,9 +39,7 @@ function formatDateTime(date: Date, timezone: string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  })
-    .format(date)
-    .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+  }).format(date);
 }
 
 function formatTime(date: Date, timezone: string): string {
@@ -52,24 +48,18 @@ function formatTime(date: Date, timezone: string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  })
-    .format(date)
-    .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+  }).format(date);
 }
 
 function durationMinutes(from: Date, to: Date): number {
   return Math.round((to.getTime() - from.getTime()) / 60_000);
 }
 
-function formatDuration(from: Date, to: Date): string {
-  const total = durationMinutes(from, to);
-  if (total < 60) return `${total} min`;
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
-}
-
-function incidentTitle(source: string, openedAt: Date, resolvedAt: Date | null): string {
+function incidentTitle(
+  source: string,
+  openedAt: Date,
+  resolvedAt: Date | null,
+): string {
   if (source === "explicit_fail") return "Failure reported";
   if (!resolvedAt) return "Missed check-in";
   const mins = durationMinutes(openedAt, resolvedAt);
@@ -81,17 +71,15 @@ function getMonthKey(date: Date, timezone: string): string {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
-  }).format(date); // e.g. "06/2026"
+  }).format(date);
 }
 
 function getMonthLabel(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     month: "short",
-  }).format(date); // e.g. "Jun"
+  }).format(date);
 }
-
-// ── page ──────────────────────────────────────────────────────────────────────
 
 export default async function ClientLedgerPage({
   params,
@@ -110,7 +98,6 @@ export default async function ClientLedgerPage({
   const tz = account.timezone ?? "UTC";
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // Ownership-scoped client fetch
   const client = await prisma.client.findFirst({
     where: { id: clientId, accountId: account.id, archivedAt: null },
     select: {
@@ -145,7 +132,6 @@ export default async function ClientLedgerPage({
 
   if (!client) notFound();
 
-  // All incidents for this client (for register + month bar)
   const allIncidents = await prisma.incident.findMany({
     where: { workflow: { clientId, client: { accountId: account.id } } },
     orderBy: { openedAt: "desc" },
@@ -155,20 +141,16 @@ export default async function ClientLedgerPage({
       status: true,
       openedAt: true,
       resolvedAt: true,
-      errorText: true,
       sendsDue: true,
       sendsArrived: true,
       notes: {
         orderBy: { createdAt: "asc" },
         select: { id: true, text: true },
       },
-      workflow: {
-        select: { id: true, name: true },
-      },
+      workflow: { select: { id: true, name: true } },
     },
   });
 
-  // Canary receipts for this client (30d)
   const receipts30d = await prisma.canaryReceipt.count({
     where: {
       workflow: { clientId, client: { accountId: account.id } },
@@ -176,7 +158,6 @@ export default async function ClientLedgerPage({
     },
   });
 
-  // Check-ins (pings) 30d
   const checkins30d = await prisma.ping.count({
     where: {
       workflow: { clientId, client: { accountId: account.id } },
@@ -184,12 +165,11 @@ export default async function ClientLedgerPage({
     },
   });
 
-  // Incidents 30d
   const incidents30d = allIncidents.filter(
     (i) => i.openedAt >= thirtyDaysAgo,
   ).length;
 
-  // Longest quiet run (days between incidents, or since creation)
+  // Longest quiet run
   let longestQuietDays = 0;
   if (allIncidents.length === 0) {
     longestQuietDays = Math.floor(
@@ -199,13 +179,11 @@ export default async function ClientLedgerPage({
     const sorted = [...allIncidents].sort(
       (a, b) => a.openedAt.getTime() - b.openedAt.getTime(),
     );
-    // Gap from creation to first incident
     const firstGap = Math.floor(
       (sorted[0].openedAt.getTime() - client.createdAt.getTime()) /
         (24 * 60 * 60 * 1000),
     );
     longestQuietDays = Math.max(longestQuietDays, firstGap);
-    // Gaps between incidents
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1].resolvedAt ?? sorted[i - 1].openedAt;
       const gap = Math.floor(
@@ -214,7 +192,6 @@ export default async function ClientLedgerPage({
       );
       longestQuietDays = Math.max(longestQuietDays, gap);
     }
-    // Gap from last incident to now
     const last = sorted[sorted.length - 1];
     const lastEnd = last.resolvedAt ?? last.openedAt;
     const tailGap = Math.floor(
@@ -223,11 +200,14 @@ export default async function ClientLedgerPage({
     longestQuietDays = Math.max(longestQuietDays, tailGap);
   }
 
-  // ── Month bar ─────────────────────────────────────────────────────────────
-
-  // Build list of months from client creation to now
+  // Month bar
   const now = new Date();
-  const months: { key: string; label: string; year: number; hasIncident: boolean }[] = [];
+  const months: {
+    key: string;
+    label: string;
+    year: number;
+    hasIncident: boolean;
+  }[] = [];
   const cursor = new Date(client.createdAt);
   cursor.setDate(1);
   cursor.setHours(0, 0, 0, 0);
@@ -235,42 +215,34 @@ export default async function ClientLedgerPage({
   while (cursor <= now) {
     const key = getMonthKey(cursor, tz);
     const label = getMonthLabel(cursor, tz);
-    const year = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-    })
-      .format(cursor)
-      .trim();
+    const year = parseInt(
+      new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric" })
+        .format(cursor)
+        .trim(),
+    );
     const hasIncident = allIncidents.some(
       (i) => getMonthKey(i.openedAt, tz) === key,
     );
-    months.push({ key, label, year: parseInt(year), hasIncident });
+    months.push({ key, label, year, hasIncident });
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  // Active month: from searchParams or default to current month
   const currentMonthKey = getMonthKey(now, tz);
   const activeMonthKey = sp.month ?? currentMonthKey;
 
-  // Incidents in active month
   const activeMonthIncidents = allIncidents.filter(
     (i) => getMonthKey(i.openedAt, tz) === activeMonthKey,
   );
 
-  // Canary events in active month (unexpected receipts)
-  const activeMonthStart = new Date(
-    parseInt(activeMonthKey.split("/")[1]),
-    parseInt(activeMonthKey.split("/")[0]) - 1,
-    1,
-  );
-  const activeMonthEnd = new Date(activeMonthStart);
-  activeMonthEnd.setMonth(activeMonthEnd.getMonth() + 1);
+  const [activeYear, activeMonth] = activeMonthKey.split("/").map(Number);
+  const activeMonthStart = new Date(activeYear, activeMonth - 1, 1);
+  const activeMonthEnd = new Date(activeYear, activeMonth, 1);
 
   const canaryEvents = await prisma.canaryReceipt.findMany({
     where: {
       workflow: { clientId, client: { accountId: account.id } },
       receivedAt: { gte: activeMonthStart, lt: activeMonthEnd },
-      expectationId: null, // unmatched = unexpected
+      expectationId: null,
     },
     orderBy: { receivedAt: "desc" },
     take: 10,
@@ -280,8 +252,6 @@ export default async function ClientLedgerPage({
       workflow: { select: { id: true, name: true } },
     },
   });
-
-  // ── Workflow status chips ─────────────────────────────────────────────────
 
   const workflowRows = client.workflows.map((wf) => {
     const inc = wf.incidents[0];
@@ -302,37 +272,35 @@ export default async function ClientLedgerPage({
     };
   });
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   const keptSince = formatDate(client.createdAt, tz);
-
-  // Unique years in month bar
   const years = [...new Set(months.map((m) => m.year))];
-  const activeYear = months.find((m) => m.key === activeMonthKey)?.year ?? years[years.length - 1];
+  const activeYearNum =
+    months.find((m) => m.key === activeMonthKey)?.year ??
+    years[years.length - 1];
+
+  const activeMonthLabel = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    month: "long",
+  }).format(activeMonthStart);
+
+  const totalEntries = activeMonthIncidents.length + canaryEvents.length;
 
   return (
-    <div style={{ padding: "28px 44px 0", minWidth: 0 }}>
+    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
         <div>
           <div
             style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "24px",
-              fontWeight: 500,
+              fontSize: "20px",
+              fontWeight: 600,
+              letterSpacing: "-.01em",
             }}
           >
             {client.name}
           </div>
           <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "9.5px",
-              letterSpacing: ".1em",
-              textTransform: "uppercase",
-              color: "var(--ink-2)",
-              marginTop: "4px",
-            }}
+            style={{ fontSize: "13px", color: "var(--t2)", marginTop: "3px" }}
           >
             Ledger · kept since {keptSince}
           </div>
@@ -345,50 +313,124 @@ export default async function ClientLedgerPage({
             gap: "10px",
           }}
         >
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "13px",
+              color: "var(--t3)",
+              border: "1px solid var(--border-2)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              background: "#fff",
+              boxShadow: "var(--sh)",
+              width: "200px",
+            }}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            Search the record…
+          </span>
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "var(--t2)",
+              border: "1px solid var(--border-2)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              background: "#fff",
+              boxShadow: "var(--sh)",
+            }}
+          >
+            All workflows
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
           <AddWorkflowForm clientId={client.id} />
         </div>
       </div>
 
-      {/* ── Figures ── */}
+      {/* ── Stat cards ── */}
       <div
         style={{
-          display: "flex",
-          gap: "34px",
-          margin: "18px 0 0",
-          paddingBottom: "14px",
-          borderBottom: "1px solid var(--hair)",
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "14px",
+          margin: "20px 0 16px",
         }}
       >
         {[
-          { v: receipts30d.toLocaleString(), k: "receipts · 30d" },
-          { v: checkins30d.toLocaleString(), k: "check-ins · 30d" },
-          { v: incidents30d, k: `incident${incidents30d !== 1 ? "s" : ""} · 30d` },
+          { k: "Receipts · 30d", v: receipts30d.toLocaleString() },
+          { k: "Check-ins · 30d", v: checkins30d.toLocaleString() },
+          { k: "Incidents · 30d", v: incidents30d },
           {
-            v: longestQuietDays > 0 ? `${longestQuietDays} days` : "—",
-            k: "longest quiet run",
+            k: "Longest quiet run",
+            v: longestQuietDays,
+            unit: "days",
           },
-        ].map(({ v, k }) => (
-          <div key={k}>
+        ].map(({ k, v, unit }) => (
+          <div
+            key={k}
+            style={{
+              background: "#fff",
+              border: "1px solid var(--border)",
+              borderRadius: "10px",
+              padding: "14px 16px",
+              boxShadow: "var(--sh)",
+            }}
+          >
             <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "15px",
-                fontWeight: 600,
-              }}
+              style={{ fontSize: "13px", fontWeight: 500, color: "var(--t2)" }}
             >
-              {v}
+              {k}
             </div>
             <div
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "8.5px",
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-                color: "var(--ink-2)",
-                marginTop: "3px",
+                fontSize: "24px",
+                fontWeight: 600,
+                letterSpacing: "-.01em",
+                marginTop: "6px",
               }}
             >
-              {k}
+              {v}
+              {unit && (
+                <small
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "var(--t2)",
+                    marginLeft: "4px",
+                  }}
+                >
+                  {unit}
+                </small>
+              )}
             </div>
           </div>
         ))}
@@ -399,23 +441,31 @@ export default async function ClientLedgerPage({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "6px",
-          padding: "16px 0 4px",
+          gap: "8px",
+          margin: "2px 0 16px",
           flexWrap: "wrap",
         }}
       >
         <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "10px",
-            fontWeight: 600,
-            marginRight: "8px",
-          }}
+          style={{ fontSize: "13px", fontWeight: 600, marginRight: "6px" }}
         >
-          {activeYear}
+          {activeYearNum}
         </span>
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ color: "var(--t3)" }}
+        >
+          <path d="m15 18-6-6 6-6" />
+        </svg>
         {months
-          .filter((m) => m.year === activeYear)
+          .filter((m) => m.year === activeYearNum)
           .map((m) => (
             <Link
               key={m.key}
@@ -425,16 +475,15 @@ export default async function ClientLedgerPage({
               <span
                 style={{
                   position: "relative",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
+                  fontSize: "13px",
+                  fontWeight: 500,
                   color:
-                    m.key === activeMonthKey
-                      ? "var(--rail-text)"
-                      : "var(--ink-2)",
+                    m.key === activeMonthKey ? "#fff" : "var(--t2)",
                   background:
                     m.key === activeMonthKey ? "var(--pine)" : "transparent",
-                  borderRadius: "999px",
-                  padding: "6px 13px",
+                  borderRadius: "8px",
+                  padding: "7px 14px",
+                  border: "1px solid transparent",
                   display: "inline-block",
                 }}
               >
@@ -445,11 +494,14 @@ export default async function ClientLedgerPage({
                       position: "absolute",
                       left: "50%",
                       transform: "translateX(-50%)",
-                      bottom: m.key === activeMonthKey ? "3px" : "-1px",
-                      width: "5px",
-                      height: "5px",
+                      bottom: "2px",
+                      width: "4px",
+                      height: "4px",
                       borderRadius: "50%",
-                      background: "var(--amber)",
+                      background:
+                        m.key === activeMonthKey
+                          ? "rgba(255,255,255,.7)"
+                          : "var(--amber)",
                       display: "block",
                     }}
                   />
@@ -457,269 +509,338 @@ export default async function ClientLedgerPage({
               </span>
             </Link>
           ))}
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ color: "var(--t3)" }}
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
       </div>
 
       {/* ── Two-column grid ── */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1.58fr 1fr",
+          gridTemplateColumns: "1.5fr 1fr",
           gap: "14px",
-          marginTop: "14px",
-          paddingBottom: "40px",
         }}
       >
         {/* ── Left: Register ── */}
-        <Panel>
-          <PanelHeader
-            label="Register"
-            count={`${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long" }).format(activeMonthStart)}`}
-            right={`${activeMonthIncidents.length + canaryEvents.length} entries · newest first`}
+        <Card>
+          <CardHeader
+            title={`Register · ${activeMonthLabel}`}
+            count={totalEntries}
+            right="Newest first"
           />
 
-          <div style={{ padding: "4px 12px 6px" }}>
-            {activeMonthIncidents.length === 0 && canaryEvents.length === 0 ? (
+          {activeMonthIncidents.length === 0 && canaryEvents.length === 0 ? (
+            <>
+              {/* Quiet-run row */}
               <div
                 style={{
-                  padding: "16px 4px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "11px",
-                  color: "var(--ink-2)",
+                  display: "grid",
+                  gridTemplateColumns: "70px 1fr auto 24px",
+                  gap: "14px",
+                  alignItems: "center",
+                  padding: "14px 16px",
+                  borderBottom: "1px solid var(--border)",
                 }}
               >
-                Quiet run — no incidents this month.
-              </div>
-            ) : (
-              <>
-                {/* Incident entries */}
-                {activeMonthIncidents.map((inc) => {
-                  const title = incidentTitle(inc.source, inc.openedAt, inc.resolvedAt ?? null);
-                  const isOpen = inc.status === "open";
-                  const statusKind = isOpen ? "open" : "resolved";
-                  const statusChip = isOpen
-                    ? `OPEN · ${Math.floor((Date.now() - inc.openedAt.getTime()) / 60_000)} MIN`
-                    : `RESOLVED · ${formatTime(inc.resolvedAt!, tz)}`;
-
-                  return (
-                    <Link
-                      key={inc.id}
-                      href={`/dashboard/incidents/${inc.id}`}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "66px 1fr auto 20px",
-                          gap: "16px",
-                          alignItems: "center",
-                          cursor: "pointer",
-                          background: "var(--lift)",
-                          border: "1px solid var(--hair-2)",
-                          borderLeft: "3px solid var(--amber)",
-                          borderRadius: "0 10px 10px 0",
-                          boxShadow: "0 10px 32px -20px rgba(30,54,43,.28)",
-                          padding: "15px 16px 15px 14px",
-                          margin: "8px 0",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "10px",
-                            color: "var(--ink-2)",
-                          }}
-                        >
-                          {formatDate(inc.openedAt, tz)}
-                          <br />
-                          {formatTime(inc.openedAt, tz)}
-                        </span>
-                        <div>
-                          <span
-                            style={{
-                              fontFamily: "var(--font-serif)",
-                              fontSize: "16px",
-                              fontWeight: 500,
-                            }}
-                          >
-                            {title}
-                          </span>
-                          <span
-                            style={{
-                              fontFamily: "var(--font-mono)",
-                              fontSize: "8.5px",
-                              letterSpacing: ".06em",
-                              textTransform: "uppercase",
-                              color: "var(--ink-2)",
-                              border: "1px solid var(--hair)",
-                              borderRadius: "4px",
-                              padding: "2px 6px",
-                              marginLeft: "8px",
-                              position: "relative",
-                              top: "-2px",
-                            }}
-                          >
-                            {inc.workflow.name}
-                          </span>
-                          <div
-                            style={{
-                              fontSize: "12.5px",
-                              color: "var(--ink-2)",
-                              marginTop: "3px",
-                            }}
-                          >
-                            {inc.sendsDue !== null && inc.sendsDue > 0 ? (
-                              <>
-                                <strong style={{ color: "var(--ink)", fontWeight: 500 }}>
-                                  {inc.sendsArrived ?? 0} of {inc.sendsDue} received
-                                </strong>
-                                {inc.resolvedAt && (
-                                  <> · caught in {formatDuration(inc.openedAt, inc.resolvedAt)}</>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                {inc.source === "explicit_fail"
-                                  ? "Failure reported"
-                                  : "Missed check-in"}
-                                {inc.resolvedAt && (
-                                  <> · {formatDuration(inc.openedAt, inc.resolvedAt)} pause</>
-                                )}
-                              </>
-                            )}
-                            {inc.notes.length > 0 && (
-                              <span style={{ fontStyle: "italic" }}>
-                                {" "}· &ldquo;{inc.notes[0].text}&rdquo;
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <span>
-                          <Chip kind={statusKind} label={statusChip} />
-                        </span>
-                        <span
-                          style={{
-                            color: "var(--ink-2)",
-                            fontSize: "11px",
-                            textAlign: "right",
-                          }}
-                        >
-                          ▶
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-
-                {/* Canary event rows (unexpected sends) */}
-                {canaryEvents.map((ev) => (
-                  <div
-                    key={ev.id}
+                <span
+                  style={{ fontSize: "12px", color: "var(--t3)", lineHeight: 1.5 }}
+                >
+                  —
+                </span>
+                <div>
+                  <span
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "66px 1fr auto",
-                      gap: "16px",
-                      alignItems: "baseline",
-                      padding: "13px 16px 13px 17px",
-                      borderBottom: "1px solid var(--hair-2)",
-                      fontSize: "13px",
+                      fontSize: "14.5px",
+                      fontWeight: 500,
+                      color: "var(--t2)",
                     }}
                   >
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "10px",
-                        color: "var(--ink-2)",
-                      }}
-                    >
-                      {formatDate(ev.receivedAt, tz)}
-                    </span>
-                    <span style={{ color: "var(--ink-2)" }}>
-                      Unexpected send caught by the canary · outside schedule
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "10px",
-                        color: "var(--ink-2)",
-                      }}
-                    >
-                      {ev.workflow.name} · ▶
-                    </span>
+                    Quiet run · {activeMonthLabel}
+                  </span>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--t2)",
+                      marginTop: "2px",
+                    }}
+                  >
+                    {receipts30d} receipts · 0 outstanding
                   </div>
-                ))}
+                </div>
+                <Badge kind="quiet" label="Quiet" />
+                <span />
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Incident entries */}
+              {activeMonthIncidents.map((inc, i) => {
+                const title = incidentTitle(
+                  inc.source,
+                  inc.openedAt,
+                  inc.resolvedAt ?? null,
+                );
+                const isOpen = inc.status === "open";
+                const s = isOpen
+                  ? `Open · ${Math.floor((Date.now() - inc.openedAt.getTime()) / 60_000)} min`
+                  : `Resolved · ${formatTime(inc.resolvedAt!, tz)}`;
+                const kind = isOpen ? "open" : "resolved";
 
-                {/* Quiet-run row if no incidents but there are canary events */}
-                {activeMonthIncidents.length === 0 && canaryEvents.length > 0 && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "66px 1fr auto",
-                      gap: "16px",
-                      alignItems: "baseline",
-                      padding: "13px 16px 13px 17px",
-                      fontSize: "13px",
-                    }}
+                return (
+                  <Link
+                    key={inc.id}
+                    href={`/dashboard/incidents/${inc.id}`}
+                    style={{ textDecoration: "none", color: "inherit" }}
                   >
-                    <span
+                    <div
                       style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "10px",
-                        color: "var(--ink-2)",
+                        display: "grid",
+                        gridTemplateColumns: "70px 1fr auto 24px",
+                        gap: "14px",
+                        alignItems: "center",
+                        padding: "14px 16px",
+                        borderBottom: "1px solid var(--border)",
+                        cursor: "pointer",
                       }}
                     >
-                      —
-                    </span>
-                    <span style={{ color: "var(--ink-2)" }}>
                       <span
                         style={{
-                          fontFamily: "var(--font-serif)",
-                          fontStyle: "italic",
-                          color: "var(--ink)",
+                          fontSize: "12px",
+                          color: "var(--t3)",
+                          lineHeight: 1.5,
                         }}
                       >
-                        Quiet run
-                      </span>{" "}
-                      · no incidents this month
+                        {formatDate(inc.openedAt, tz)}
+                        <br />
+                        {formatTime(inc.openedAt, tz)}
+                      </span>
+                      <div>
+                        <span
+                          style={{ fontSize: "14.5px", fontWeight: 600 }}
+                        >
+                          {title}
+                        </span>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            fontSize: "11px",
+                            fontWeight: 500,
+                            color: "var(--t2)",
+                            background: "var(--subtle)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "5px",
+                            padding: "1px 7px",
+                            marginLeft: "8px",
+                            verticalAlign: "1px",
+                          }}
+                        >
+                          {inc.workflow.name}
+                        </span>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "var(--t2)",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {inc.sendsDue !== null && inc.sendsDue > 0 ? (
+                            <>
+                              <strong
+                                style={{
+                                  color: "var(--t1)",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {inc.sendsArrived ?? 0} of {inc.sendsDue}{" "}
+                                received
+                              </strong>
+                              {inc.resolvedAt && (
+                                <>
+                                  {" "}
+                                  · caught in{" "}
+                                  {Math.round(
+                                    (inc.resolvedAt.getTime() -
+                                      inc.openedAt.getTime()) /
+                                      60_000,
+                                  )}
+                                  m
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {inc.source === "explicit_fail"
+                                ? "Failure reported"
+                                : "Missed check-in"}
+                            </>
+                          )}
+                          {inc.notes.length > 0 && (
+                            <span style={{ fontStyle: "italic" }}>
+                              {" "}
+                              · &ldquo;{inc.notes[0].text}&rdquo;
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge kind={kind} label={s} />
+                      <span style={{ color: "var(--t3)" }}>
+                        <ChevronRight />
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+
+              {/* Canary event rows */}
+              {canaryEvents.map((ev) => (
+                <div
+                  key={ev.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "70px 1fr auto 24px",
+                    gap: "14px",
+                    alignItems: "center",
+                    padding: "14px 16px",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--t3)",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {formatDate(ev.receivedAt, tz)}
+                    <br />
+                    {formatTime(ev.receivedAt, tz)}
+                  </span>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: "14.5px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Unexpected send caught by the canary
                     </span>
                     <span
                       style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "10px",
-                        color: "var(--ink-2)",
+                        display: "inline-block",
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        color: "var(--t2)",
+                        background: "var(--subtle)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "5px",
+                        padding: "1px 7px",
+                        marginLeft: "8px",
+                        verticalAlign: "1px",
+                      }}
+                    >
+                      {ev.workflow.name}
+                    </span>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "var(--t2)",
+                        marginTop: "2px",
+                      }}
+                    >
+                      Outside the schedule
+                    </div>
+                  </div>
+                  <Badge kind="unmatched" label="Unmatched" />
+                  <span style={{ color: "var(--t3)" }}>
+                    <ChevronRight />
+                  </span>
+                </div>
+              ))}
+
+              {/* Quiet-run row if no incidents but canary events exist */}
+              {activeMonthIncidents.length === 0 && canaryEvents.length > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "70px 1fr auto 24px",
+                    gap: "14px",
+                    alignItems: "center",
+                    padding: "14px 16px",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--t3)",
+                    }}
+                  >
+                    —
+                  </span>
+                  <div>
+                    <span
+                      style={{
+                        fontSize: "14.5px",
+                        fontWeight: 500,
+                        color: "var(--t2)",
+                      }}
+                    >
+                      Quiet run · {activeMonthLabel}
+                    </span>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "var(--t2)",
+                        marginTop: "2px",
                       }}
                     >
                       {receipts30d} receipts · 0 outstanding
-                    </span>
+                    </div>
                   </div>
-                )}
-              </>
-            )}
-          </div>
+                  <Badge kind="quiet" label="Quiet" />
+                  <span />
+                </div>
+              )}
+            </>
+          )}
 
           <div
             style={{
-              padding: "16px 2px",
-              fontFamily: "var(--font-mono)",
-              fontSize: "9px",
-              color: "var(--ink-2)",
-              paddingLeft: "16px",
+              padding: "11px 16px",
+              fontSize: "12px",
+              color: "var(--t3)",
+              borderTop: "1px solid var(--border)",
+              background: "var(--subtle)",
             }}
           >
             Entries are appended, never edited.
           </div>
-        </Panel>
+        </Card>
 
         {/* ── Right: Workflows + Record ── */}
         <div>
-          <Panel>
-            <PanelHeader label="Workflows" count={client.workflows.length} />
+          <Card>
+            <CardHeader
+              title="Workflows"
+              count={client.workflows.length}
+            />
             {client.workflows.length === 0 ? (
               <div
                 style={{
                   padding: "14px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "11px",
-                  color: "var(--ink-2)",
+                  fontSize: "13px",
+                  color: "var(--t2)",
                 }}
               >
                 No workflows yet.
@@ -734,59 +855,55 @@ export default async function ClientLedgerPage({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr auto auto 14px",
+                      gridTemplateColumns: "1fr auto auto 20px",
                       gap: "12px",
                       alignItems: "center",
                       padding: "12px 16px",
                       borderBottom:
                         i < workflowRows.length - 1
-                          ? "1px solid var(--hair-2)"
+                          ? "1px solid var(--border)"
                           : "none",
-                      fontSize: "13px",
+                      fontSize: "14px",
                       cursor: "pointer",
                     }}
                   >
                     <span style={{ fontWeight: 500 }}>{wf.name}</span>
-                    <Chip kind={wf.statusKind} label={wf.statusChip} />
+                    <Badge kind={wf.statusKind} label={wf.statusChip} />
                     <span
                       style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "9px",
-                        color: wf.canaryOn ? "var(--green)" : "var(--ink-2)",
+                        fontSize: "12px",
+                        color: wf.canaryOn
+                          ? "var(--green-tx)"
+                          : "var(--t3)",
+                        fontWeight: wf.canaryOn ? 500 : 400,
                       }}
                     >
                       canary {wf.canaryOn ? "on" : "off"}
                     </span>
-                    <span
-                      style={{
-                        color: "var(--ink-2)",
-                        fontSize: "10px",
-                      }}
-                    >
-                      ▶
+                    <span style={{ color: "var(--t3)" }}>
+                      <ChevronRight />
                     </span>
                   </div>
                 </Link>
               ))
             )}
-          </Panel>
+          </Card>
 
-          <Panel style={{ marginTop: "14px" }}>
-            <PanelHeader label="The record" />
+          <Card style={{ marginTop: "14px" }}>
+            <CardHeader title="The record" />
             <div
               style={{
-                padding: "12px 16px",
-                fontFamily: "var(--font-mono)",
-                fontSize: "9.5px",
-                color: "var(--ink-2)",
-                lineHeight: 2,
+                padding: "13px 16px",
+                fontSize: "13px",
+                color: "var(--t2)",
+                lineHeight: 1.8,
               }}
             >
               Kept since {keptSince} · retained 12 months
               <br />
               Entries are appended, never edited.
             </div>
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>

@@ -6,14 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 
 /**
- * Dashboard shell — the 64px dark rail sidebar + content area.
- * Matches euclio-home-view.html / euclio-setup-view.html / euclio-answer-view.html.
+ * Dashboard shell — 64px pine rail + content area.
+ * Matches the rail spec across all six v6 design files.
  *
- * Rail contents (top → bottom):
- *   Euclio logo mark
- *   Client avatar buttons (initials, amber dot if any workflow is down)
+ * Rail (top → bottom):
+ *   Euclio logomark (links home)
+ *   Client monograms (34px circles; active = pine-2 fill; open incident = 7px amber dot)
  *   ── spacer ──
- *   Gear (settings placeholder)
+ *   Gear icon (settings placeholder)
  *   User avatar (account initials)
  */
 export default async function DashboardLayout({
@@ -26,8 +26,6 @@ export default async function DashboardLayout({
 
   const account = await getOrCreateAccountForCurrentUser();
 
-  // Fetch clients for the rail avatars — include open incident count so we
-  // can show the amber dot on clients with active incidents.
   const clients = await prisma.client.findMany({
     where: { accountId: account.id, archivedAt: null },
     orderBy: { name: "asc" },
@@ -47,7 +45,6 @@ export default async function DashboardLayout({
     },
   });
 
-  // Account initials for the user avatar (up to 2 chars)
   const accountInitials = account.name
     .split(/\s+/)
     .map((w: string) => w[0])
@@ -61,13 +58,13 @@ export default async function DashboardLayout({
         display: "grid",
         gridTemplateColumns: "64px 1fr",
         minHeight: "100vh",
-        background: "var(--paper)",
+        background: "var(--page-bg)",
       }}
     >
       {/* ── Rail ── */}
       <aside
         style={{
-          background: "var(--rail)",
+          background: "var(--pine)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -79,10 +76,24 @@ export default async function DashboardLayout({
           overflowY: "auto",
         }}
       >
-        {/* Logo mark */}
-        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "10px" }}>
+        {/* Logomark */}
+        <Link
+          href="/dashboard"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: "10px",
+          }}
+        >
           <svg width="20" height="20" viewBox="0 0 64 64" aria-label="Euclio">
-            <g fill="none" stroke="#F6F2E9" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <g
+              fill="none"
+              stroke="#F5F6F4"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="32" cy="32" r="26.5" />
               <path d="M22 16 V48" />
               <path d="M22 16 H44" />
@@ -92,7 +103,7 @@ export default async function DashboardLayout({
           </svg>
         </Link>
 
-        {/* Client avatars */}
+        {/* Client monograms */}
         {clients.map((client) => {
           const hasIncident = client.workflows.some(
             (w) => w.incidents.length > 0,
@@ -110,20 +121,18 @@ export default async function DashboardLayout({
               href={`/dashboard/clients/${client.id}`}
               title={client.name}
               style={{
-                width: "34px",
-                height: "34px",
+                width: "32px",
+                height: "32px",
                 borderRadius: "50%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontFamily: "var(--font-mono)",
-                fontSize: "10px",
+                fontSize: "11px",
+                fontWeight: 600,
                 color: "var(--rail-muted)",
                 position: "relative",
                 margin: "3px 0",
                 textDecoration: "none",
-                background: "transparent",
-                transition: "background 0.15s",
               }}
             >
               {initials}
@@ -131,12 +140,13 @@ export default async function DashboardLayout({
                 <span
                   style={{
                     position: "absolute",
-                    right: "2px",
-                    top: "2px",
-                    width: "6px",
-                    height: "6px",
+                    right: 0,
+                    top: 0,
+                    width: "7px",
+                    height: "7px",
                     borderRadius: "50%",
                     background: "var(--amber)",
+                    border: "1.5px solid var(--pine)",
                   }}
                 />
               )}
@@ -144,76 +154,51 @@ export default async function DashboardLayout({
           );
         })}
 
-        {/* Add client button */}
-        <Link
-          href="/dashboard/clients/new"
-          title="Add client"
-          style={{
-            width: "28px",
-            height: "28px",
-            borderRadius: "50%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--font-mono)",
-            fontSize: "16px",
-            color: "var(--rail-muted)",
-            textDecoration: "none",
-            border: "1px dashed rgba(246,242,233,.2)",
-            marginTop: "4px",
-          }}
-        >
-          +
-        </Link>
-
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
-        {/* Logout */}
-        <SignOutButton redirectUrl="/sign-in">
+        {/* Gear */}
+        <svg
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ color: "var(--rail-muted)", marginBottom: "12px" }}
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+
+        {/* User avatar */}
+        <SignOutButton redirectUrl="https://euclio.io">
           <button
-            title="Sign out"
+            title={`${account.name} — click to sign out`}
             style={{
-              width: "28px",
-              height: "28px",
+              width: "30px",
+              height: "30px",
               borderRadius: "50%",
+              background: "var(--pine-2)",
+              color: "var(--rail-text)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "none",
+              fontSize: "10px",
+              fontWeight: 600,
               border: "none",
               cursor: "pointer",
-              color: "var(--rail-muted)",
-              fontSize: "13px",
-              marginBottom: "8px",
             }}
           >
-            ↪
+            {accountInitials}
           </button>
         </SignOutButton>
-
-        {/* User avatar */}
-        <div
-          style={{
-            width: "28px",
-            height: "28px",
-            borderRadius: "50%",
-            background: "var(--rail-2)",
-            color: "var(--rail-text)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--font-mono)",
-            fontSize: "9px",
-          }}
-          title={account.name}
-        >
-          {accountInitials}
-        </div>
       </aside>
 
       {/* ── Content ── */}
-      <div style={{ minWidth: 0, overflowY: "auto" }}>
+      <div style={{ minWidth: 0, overflowY: "auto", background: "var(--canvas)" }}>
         {children}
       </div>
     </div>

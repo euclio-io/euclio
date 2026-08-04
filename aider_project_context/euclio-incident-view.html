@@ -5,163 +5,170 @@
 <title>Euclio — Northgate Dental · Appointment reminders · Jun 14</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#F5F2EB; --lift:#FCFBF8; --rail:#1E362B; --rail-2:#24402F;
-    --rail-text:#F6F2E9; --rail-muted:rgba(246,242,233,.45);
-    --ink:#1C2B22; --ink-2:#55645A; --pine:#1E362B; --green:#2F6B4A;
-    --amber:#B0852E; --amber-deep:#8A6423;
-    --hair:rgba(28,43,34,.16); --hair-2:rgba(28,43,34,.07);
-    --serif:'Spectral',serif; --sans:'Instrument Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+    --canvas:#FFFFFF; --subtle:#F9FAFB; --border:#EAECF0; --border-2:#D0D5DD;
+    --t1:#101828; --t2:#475467; --t3:#667085;
+    --pine:#1E362B; --pine-2:#24402F; --rail-text:#F5F6F4; --rail-muted:rgba(245,246,244,.55);
+    --amber-bg:#FFFAEB; --amber-tx:#B54708; --amber-bd:#FEDF89; --amber:#F79009;
+    --green-bg:#ECFDF3; --green-tx:#067647; --green-bd:#ABEFC6; --green:#17B26A;
+    --gray-bg:#F9FAFB; --gray-tx:#475467; --gray-bd:#EAECF0; --gray:#98A2B3;
+    --sh:0 1px 2px rgba(16,24,40,.05); --f:'Inter',sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,monospace;
   }
   *{box-sizing:border-box;margin:0;}
-  body{background:#E6E3DA;font-family:var(--sans);color:var(--ink);padding:40px;
-       display:flex;justify-content:center;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
-  .app{width:1180px;height:860px;background:var(--paper);border-radius:10px;overflow:hidden;
-       display:grid;grid-template-columns:64px 1fr;box-shadow:0 30px 70px -35px rgba(20,30,25,.45);}
-  .rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
-  .cl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-      font-family:var(--mono);font-size:10px;color:var(--rail-muted);position:relative;margin:3px 0;}
-  .cl.on{color:var(--rail-text);background:var(--rail-2);}
-  .cl.on:before{content:"";position:absolute;left:-15px;width:3px;height:18px;border-radius:2px;background:var(--amber);}
-  .cl .b{position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;background:var(--amber);}
+  body{background:#F2F4F7;font-family:var(--f);color:var(--t1);padding:40px;display:flex;justify-content:center;
+       -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+  .app{width:1180px;height:830px;background:var(--canvas);border-radius:12px;overflow:hidden;
+       display:grid;grid-template-columns:64px 1fr;box-shadow:0 24px 48px -12px rgba(16,24,40,.18);}
+  .rail{background:var(--pine);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
+  .cl{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:600;color:var(--rail-muted);position:relative;margin:3px 0;}
+  .cl.on{color:var(--rail-text);background:var(--pine-2);}
+  .cl .b{position:absolute;right:0;top:0;width:7px;height:7px;border-radius:50%;background:var(--amber);border:1.5px solid var(--pine);}
   .rail .sp{flex:1;}
-  .gear{color:var(--rail-muted);font-size:14px;margin-bottom:12px;}
-  .me{width:28px;height:28px;border-radius:50%;color:var(--rail-text);background:var(--rail-2);
-      display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;}
-
-  .main{min-width:0;padding:24px 40px 0;}
-  .crumb{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);}
-  .head{display:flex;align-items:baseline;gap:14px;margin-top:7px;}
-  .h-name{font-family:var(--serif);font-size:23px;font-weight:500;}
-  .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.07em;font-weight:600;
-        border-radius:5px;padding:4px 9px;position:relative;top:-3px;}
-  .chip.res{color:var(--green);background:rgba(47,107,74,.1);}
-  .when{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--ink-2);}
-
-  .panel{background:var(--lift);border:1px solid var(--hair-2);border-radius:10px;overflow:hidden;margin-top:14px;}
-  .p-h{display:flex;align-items:baseline;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hair);
-       font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);}
-  .p-h .car{font-size:9px;}
-  .p-h .r{margin-left:auto;letter-spacing:.04em;text-transform:none;}
-  .panel.loud{box-shadow:0 12px 36px -20px rgba(30,54,43,.32);}
-
-  .impact{display:flex;align-items:stretch;}
-  .imp-hero{padding:18px 28px 16px;border-right:1px solid var(--hair-2);}
-  .imp-hero .v{font-family:var(--mono);font-size:33px;font-weight:600;color:var(--green);letter-spacing:-.02em;}
-  .imp-hero .k{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);margin-top:4px;}
-  .imp-rest{display:flex;align-items:center;gap:34px;padding:0 30px;}
-  .imp .v{font-family:var(--mono);font-size:15px;font-weight:600;}
-  .imp .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin-top:4px;}
-
-  .verd{display:grid;grid-template-columns:1fr auto;gap:28px;align-items:start;padding:14px 16px 15px;}
-  .sum{font-size:13.5px;line-height:1.7;max-width:62ch;}
-  .slot{margin-top:9px;font-size:12px;font-style:italic;color:var(--amber-deep);
-        border-bottom:1px dashed rgba(176,133,46,.55);display:inline-block;padding-bottom:2px;}
-  .acts{display:flex;flex-direction:column;gap:9px;align-items:flex-end;padding-top:2px;}
-  .btn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-       border-radius:999px;padding:9px 16px;border:none;background:var(--pine);color:var(--rail-text);}
-  .ghost{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);
-         background:none;border:none;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--hair);}
-
-  .fx{display:grid;grid-template-columns:1.22fr 1fr;gap:14px;}
-
-  /* the connected timeline */
-  .tl{padding:6px 16px 12px 20px;}
-  .tl-e{position:relative;padding:9px 0 9px 24px;border-left:2px solid var(--hair-2);}
+  .me{width:30px;height:30px;border-radius:50%;color:var(--rail-text);background:var(--pine-2);
+      display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;}
+  svg.ic{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;}
+  .main{min-width:0;padding:28px 32px 0;overflow:hidden;}
+  .crumb{font-size:13px;color:var(--t3);display:flex;gap:6px;align-items:center;}
+  .crumb b{color:var(--t2);font-weight:500;}
+  .head{display:flex;align-items:flex-start;gap:14px;margin-top:6px;}
+  .h-name{font-size:20px;font-weight:600;letter-spacing:-.01em;}
+  .h-sub{font-size:13px;color:var(--t2);margin-top:3px;}
+  .h-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .when{font-size:13px;color:var(--t3);}
+  .search{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t3);border:1px solid var(--border-2);
+          border-radius:8px;padding:8px 12px;background:#fff;box-shadow:var(--sh);width:200px;}
+  .sel{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--t2);
+       border:1px solid var(--border-2);border-radius:8px;padding:8px 12px;background:#fff;box-shadow:var(--sh);}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:8px;
+       padding:9px 14px;border:1px solid var(--pine);background:var(--pine);color:#fff;box-shadow:var(--sh);}
+  .btn2{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:8px;
+        padding:9px 14px;border:1px solid var(--border-2);background:#fff;color:var(--t2);box-shadow:var(--sh);}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 16px;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--sh);}
+  .stat .k{font-size:13px;font-weight:500;color:var(--t2);}
+  .stat .v{font-size:24px;font-weight:600;letter-spacing:-.01em;margin-top:6px;}
+  .stat .v.g{color:var(--green-tx);} .stat .v.a{color:var(--amber-tx);}
+  .stat .v small{font-size:14px;font-weight:500;color:var(--t2);}
+  .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;}
+  .card{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh);overflow:hidden;}
+  .card + .card{margin-top:14px;}
+  .c-h{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--border);}
+  .c-t{font-size:15px;font-weight:600;}
+  .cnt{font-size:12px;font-weight:500;color:var(--t2);background:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:1px 8px;}
+  .c-h .r{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2);}
+  .warn-card{border-color:var(--amber-bd);}
+  .warn-card .c-h{background:var(--amber-bg);border-bottom-color:var(--amber-bd);}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;border-radius:999px;padding:3px 9px;border:1px solid;white-space:nowrap;}
+  .badge .d{width:6px;height:6px;border-radius:50%;}
+  .badge.open{color:var(--amber-tx);background:var(--amber-bg);border-color:var(--amber-bd);} .badge.open .d{background:var(--amber);}
+  .badge.res{color:var(--green-tx);background:var(--green-bg);border-color:var(--green-bd);} .badge.res .d{background:var(--green);}
+  .badge.quiet{color:var(--gray-tx);background:var(--gray-bg);border-color:var(--gray-bd);} .badge.quiet .d{background:var(--gray);}
+  .mono{font-family:var(--mono);font-size:12px;}
+  .kv{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:13.5px;align-items:baseline;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--t2);font-weight:500;font-size:13px;}
+  .kv .a{color:var(--amber-tx);font-weight:600;}
+  .tl{padding:8px 16px 12px 22px;}
+  .tl-e{position:relative;padding:9px 0 9px 22px;border-left:2px solid var(--border);}
   .tl-e:last-child{border-left-color:transparent;}
-  .tl-e .node{position:absolute;left:-5px;top:14px;width:8px;height:8px;border-radius:50%;
-              background:var(--ink-2);border:2px solid var(--lift);}
+  .tl-e .node{position:absolute;left:-5px;top:14px;width:8px;height:8px;border-radius:50%;background:var(--gray);border:2px solid #fff;}
   .tl-e.a .node{background:var(--amber);} .tl-e.g .node{background:var(--green);}
   .tl-top{display:flex;align-items:baseline;gap:10px;}
-  .tl-k{font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--ink-2);}
-  .tl-e.a .tl-k{color:var(--amber-deep);} .tl-e.g .tl-k{color:var(--green);}
-  .tl-t{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--ink-2);}
-  .tl-x{font-size:12.5px;line-height:1.5;margin-top:2px;}
-  .tl-x code{font-family:var(--mono);font-size:10.5px;color:var(--pine);}
-  .tl-x .note{color:var(--ink-2);font-style:italic;}
-  .tl-x .who{font-family:var(--mono);font-size:9px;color:var(--ink-2);margin-left:6px;}
+  .tl-k{font-size:12px;font-weight:600;color:var(--t2);}
+  .tl-e.a .tl-k{color:var(--amber-tx);} .tl-e.g .tl-k{color:var(--green-tx);}
+  .tl-t{margin-left:auto;font-size:12px;color:var(--t3);}
+  .tl-x{font-size:13.5px;line-height:1.55;margin-top:2px;color:var(--t1);}
+  .tl-x .note{color:var(--t2);font-style:italic;}
+  .tl-x .who{font-size:11px;font-weight:600;color:var(--t3);margin-left:6px;}
+  .th,.trw{display:grid;gap:12px;align-items:baseline;padding:9px 16px;}
+  .th{background:var(--subtle);border-bottom:1px solid var(--border);}
+  .th span{font-size:12px;font-weight:500;color:var(--t3);}
+  .trw{border-bottom:1px solid var(--border);font-size:13.5px;}
+  .trw:last-of-type{border-bottom:none;}
+  .trw .g{color:var(--green-tx);font-weight:500;}
+  .sum-row{padding:11px 16px;border-top:1px solid var(--border);font-size:13px;font-weight:600;background:var(--subtle);}
+  .slot{border:1px dashed var(--amber-bd);background:var(--amber-bg);border-radius:8px;padding:10px 12px;
+        font-size:13px;font-style:italic;color:var(--amber-tx);}
+  .link{color:var(--pine);font-weight:500;font-size:13px;}
+  .foot-note{padding:11px 16px;font-size:12px;color:var(--t3);border-top:1px solid var(--border);background:var(--subtle);}
+  
+  .impact{display:flex;align-items:stretch;}
+  .ih{padding:16px 26px 14px;border-right:1px solid var(--border);}
+  .ih .v{font-size:30px;font-weight:600;color:var(--green-tx);letter-spacing:-.01em;}
+  .ih .k{font-size:13px;font-weight:500;color:var(--t2);margin-top:4px;}
+  .ir{display:flex;align-items:center;gap:36px;padding:0 28px;}
+  .ir .v{font-size:17px;font-weight:600;}
+  .ir .k{font-size:12.5px;font-weight:500;color:var(--t2);margin-top:3px;}
+  .verd{display:grid;grid-template-columns:1fr auto;gap:28px;align-items:start;padding:15px 16px;}
+  .sum{font-size:14px;line-height:1.65;max-width:64ch;}
+  .acts{display:flex;flex-direction:column;gap:9px;align-items:stretch;padding-top:2px;}
 
-  .rc{display:grid;grid-template-columns:74px 96px 1fr;gap:8px;padding:8px 16px;font-family:var(--mono);font-size:11px;
-      border-bottom:1px solid var(--hair-2);align-items:baseline;}
-  .rc span:last-child{text-align:right;color:var(--green);font-weight:500;}
-  .rc.hd{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);font-weight:400;}
-  .rc.hd span:last-child{color:var(--ink-2);font-weight:400;}
-  .rc-sum{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:10px 16px;border-top:1px solid var(--hair);}
-
-  .diag{display:flex;align-items:baseline;gap:12px;padding:11px 16px;font-family:var(--mono);font-size:10px;color:var(--ink-2);}
-  .diag code{font-size:10px;color:var(--pine);}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="rail">
-    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F6F2E9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
+    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F5F6F4" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
     <div style="height:10px"></div>
     <div class="cl on">ND</div><div class="cl">CR</div><div class="cl">MB<span class="b"></span></div><div class="cl">BP</div>
-    <div class="sp"></div><div class="gear">&#9881;</div><div class="me">AR</div>
+    <div class="sp"></div><div class="me">AR</div>
   </aside>
   <div class="main">
-    <div class="crumb">&#8592; Northgate Dental ledger</div>
+    <div class="crumb">&#8592; <b>Northgate Dental ledger</b></div>
     <div class="head">
       <span class="h-name">Appointment reminders</span>
-      <span class="chip res">RESOLVED</span>
-      <span class="when">Jun 14 &middot; 09:02:41 &ndash; 09:41:07</span>
+      <span class="badge res" style="position:relative;top:2px;"><span class="d"></span>Resolved</span>
+      <span class="h-right when">Jun 14 &middot; 09:02:41 &ndash; 09:41:07</span>
     </div>
-
-    <div class="panel loud">
+    <div class="card" style="margin-top:16px;">
       <div class="impact">
-        <div class="imp-hero"><div class="v">0</div><div class="k">outstanding</div></div>
-        <div class="imp-rest">
-          <div class="imp"><div class="v">4 / 4</div><div class="k">receipts received</div></div>
-          <div class="imp"><div class="v">31 s</div><div class="k">time to catch</div></div>
-          <div class="imp"><div class="v">12 min</div><div class="k">pause</div></div>
-          <div class="imp"><div class="v">38 min</div><div class="k">to resolution</div></div>
+        <div class="ih"><div class="v">0</div><div class="k">Outstanding</div></div>
+        <div class="ir">
+          <div><div class="v">4 / 4</div><div class="k">Receipts received</div></div>
+          <div><div class="v">31 s</div><div class="k">Time to catch</div></div>
+          <div><div class="v">12 min</div><div class="k">Pause</div></div>
+          <div><div class="v">38 min</div><div class="k">To resolution</div></div>
         </div>
       </div>
     </div>
-
-    <div class="panel">
-      <div class="p-h"><span>Summary &middot; from the record</span></div>
+    <div class="card">
+      <div class="c-h"><span class="c-t">Summary</span><span class="r">from the record</span></div>
       <div class="verd">
         <div>
           <div class="sum">A 12-minute pause on Jun 14, 9:02 to 9:14. Caught at 9:03. The workflow reported a failure (timeout at the calendar API). Four reminders were due during the pause; all four arrived by 9:17. The 26 days before: quiet, 212 sends, 212 receipts.</div>
-          <div class="slot">Your read &mdash; required before any client note</div>
+          <div class="slot" style="margin-top:11px;">Your read &mdash; required before any client note</div>
         </div>
-        <div class="acts">
-          <button class="btn">Copy summary</button>
-          <button class="ghost">Compose client note</button>
-        </div>
+        <div class="acts"><span class="btn" style="justify-content:center;">Copy summary</span><span class="btn2" style="justify-content:center;">Compose client note</span></div>
       </div>
     </div>
-
-    <div class="fx">
-      <div class="panel">
-        <div class="p-h"><span class="car">&#9662;</span><span>Events &middot; 6</span></div>
+    <div class="grid" style="grid-template-columns:1.22fr 1fr;">
+      <div class="card">
+        <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg><span class="c-t">Events</span><span class="cnt">6</span></div>
         <div class="tl">
-          <div class="tl-e"><span class="node"></span><div class="tl-top"><span class="tl-k">check-in</span><span class="tl-t">09:02:41</span></div><div class="tl-x">Last check-in before the gap</div></div>
-          <div class="tl-e a"><span class="node"></span><div class="tl-top"><span class="tl-k">gap</span><span class="tl-t">09:03:12</span></div><div class="tl-x">Missed check-in &middot; alert sent by email</div></div>
-          <div class="tl-e a"><span class="node"></span><div class="tl-top"><span class="tl-k">fail ping</span><span class="tl-t">09:04:02</span></div><div class="tl-x"><code>TimeoutError: calendar API</code></div></div>
-          <div class="tl-e g"><span class="node"></span><div class="tl-top"><span class="tl-k">recovered</span><span class="tl-t">09:14:12</span></div><div class="tl-x">Check-ins resumed</div></div>
-          <div class="tl-e g"><span class="node"></span><div class="tl-top"><span class="tl-k">receipts</span><span class="tl-t">09:17:30</span></div><div class="tl-x">Reconciled &middot; 4 of 4 expected received</div></div>
-          <div class="tl-e"><span class="node"></span><div class="tl-top"><span class="tl-k">resolved</span><span class="tl-t">09:41:07</span></div><div class="tl-x"><span class="note">"rotated the calendar credentials, redeployed"</span><span class="who">&middot; ALEX</span></div></div>
+          <div class="tl-e"><span class="node"></span><div class="tl-top"><span class="tl-k">Check-in</span><span class="tl-t">09:02:41</span></div><div class="tl-x">Last check-in before the gap</div></div>
+          <div class="tl-e a"><span class="node"></span><div class="tl-top"><span class="tl-k">Gap</span><span class="tl-t">09:03:12</span></div><div class="tl-x">Missed check-in &middot; alert sent by email</div></div>
+          <div class="tl-e a"><span class="node"></span><div class="tl-top"><span class="tl-k">Fail ping</span><span class="tl-t">09:04:02</span></div><div class="tl-x"><span class="mono">TimeoutError: calendar API</span></div></div>
+          <div class="tl-e g"><span class="node"></span><div class="tl-top"><span class="tl-k">Recovered</span><span class="tl-t">09:14:12</span></div><div class="tl-x">Check-ins resumed</div></div>
+          <div class="tl-e g"><span class="node"></span><div class="tl-top"><span class="tl-k">Receipts</span><span class="tl-t">09:17:30</span></div><div class="tl-x">Reconciled &middot; 4 of 4 expected received</div></div>
+          <div class="tl-e"><span class="node"></span><div class="tl-top"><span class="tl-k">Resolved</span><span class="tl-t">09:41:07</span></div><div class="tl-x"><span class="note">"rotated the calendar credentials, redeployed"</span><span class="who">ALEX</span></div></div>
         </div>
       </div>
-
       <div>
-        <div class="panel" style="margin-top:14px;">
-          <div class="p-h"><span class="car">&#9662;</span><span>Receipts &middot; 4 of 4</span><span class="r">canary detail &#9654;</span></div>
-          <div class="rc hd"><span>expected</span><span>received</span><span>delta</span></div>
-          <div class="rc"><span>09:05</span><span>09:16:02</span><span>+11m</span></div>
-          <div class="rc"><span>09:05</span><span>09:16:04</span><span>+11m</span></div>
-          <div class="rc"><span>09:10</span><span>09:16:47</span><span>+6m</span></div>
-          <div class="rc"><span>09:10</span><span>09:17:11</span><span>+7m</span></div>
-          <div class="rc-sum">4 expected &middot; 4 received &middot; 0 outstanding</div>
+        <div class="card" style="margin-top:0;">
+          <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg><span class="c-t">Receipts</span><span class="cnt">4 of 4</span><span class="r"><span class="link">Canary detail</span></span></div>
+          <div class="th" style="grid-template-columns:80px 100px 1fr;"><span>Expected</span><span>Received</span><span style="text-align:right;">Delta</span></div>
+          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:05</span><span>09:16:02</span><span class="g" style="text-align:right;">+11m</span></div>
+          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:05</span><span>09:16:04</span><span class="g" style="text-align:right;">+11m</span></div>
+          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:10</span><span>09:16:47</span><span class="g" style="text-align:right;">+6m</span></div>
+          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:10</span><span>09:17:11</span><span class="g" style="text-align:right;">+7m</span></div>
+          <div class="sum-row">4 expected &middot; 4 received &middot; 0 outstanding</div>
         </div>
-
-        <div class="panel">
-          <div class="p-h"><span class="car">&#9656;</span><span>Diagnostics &middot; 1</span><span class="r">redacted &middot; ttl 30d</span></div>
+        <div class="card">
+          <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg><span class="c-t">Diagnostics</span><span class="cnt">1</span><span class="r">redacted &middot; ttl 30d</span></div>
         </div>
       </div>
     </div>

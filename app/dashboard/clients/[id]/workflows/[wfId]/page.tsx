@@ -8,14 +8,16 @@ import { AddExpectationForm } from "@/app/dashboard/add-expectation-form";
 import { EnableCanaryForm } from "@/app/dashboard/enable-canary-form";
 import { SimulateFailureForm } from "@/app/dashboard/simulate-failure-form";
 import { SnippetTabs } from "./snippet-tabs";
+import { Card, CardHeader } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 
 /**
  * Workflow setup page — "Add the check-in"
- * Matches euclio-setup-view.html:
- *   breadcrumb / heading / token
+ * Matches euclio-setup-view.html (v6 design system):
+ *   breadcrumb / heading / token badge
  *   tabs: n8n | Make | Zapier | Node | Python | curl | Coding agent
- *   left: capture-error checkbox + snippet + /fail section
- *   right: listening status + canary config
+ *   left: snippet card (capture-error checkbox + code + copy) + fail card
+ *   right: listening card + canary card
  */
 export default async function WorkflowSetupPage({
   params,
@@ -28,7 +30,6 @@ export default async function WorkflowSetupPage({
   const { id: clientId, wfId } = await params;
   const account = await getOrCreateAccountForCurrentUser();
 
-  // Ownership-scoped fetch
   const workflow = await prisma.workflow.findFirst({
     where: {
       id: wfId,
@@ -63,61 +64,61 @@ export default async function WorkflowSetupPage({
   const failUrl = `${baseUrl}/api/ping/${workflow.token}/fail`;
 
   return (
-    <div style={{ padding: "30px 44px 0", minWidth: 0 }}>
+    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
       {/* ── Breadcrumb ── */}
       <div
         style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "9.5px",
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: "var(--ink-2)",
+          fontSize: "13px",
+          color: "var(--t3)",
+          display: "flex",
+          gap: "6px",
+          alignItems: "center",
         }}
       >
         <Link
-          href="/dashboard"
-          style={{ color: "var(--ink-2)", textDecoration: "none" }}
-        >
-          Clients
-        </Link>
-        {" / "}
-        <Link
           href={`/dashboard/clients/${workflow.client.id}`}
-          style={{ color: "var(--ink-2)", textDecoration: "none" }}
+          style={{ color: "var(--t2)", fontWeight: 500, textDecoration: "none" }}
         >
           {workflow.client.name}
         </Link>
-        {" / "}
-        {workflow.name}
+        <span>/</span>
+        <span style={{ color: "var(--t3)" }}>{workflow.name}</span>
       </div>
 
       {/* ── Heading ── */}
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
-          gap: "16px",
-          marginTop: "8px",
-          marginBottom: "22px",
+          alignItems: "flex-start",
+          gap: "14px",
+          marginTop: "6px",
+          marginBottom: "18px",
         }}
       >
-        <h1
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "25px",
-            fontWeight: 500,
-          }}
+        <span
+          style={{ fontSize: "20px", fontWeight: 600, letterSpacing: "-.01em" }}
         >
           Add the check-in
-        </h1>
+        </span>
+        {/* Token badge — mono, quiet style */}
         <span
           style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "10.5px",
-            color: "var(--ink-2)",
+            position: "relative",
+            top: "2px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "12px",
+            fontWeight: 500,
+            borderRadius: "999px",
+            padding: "3px 9px",
+            border: "1px solid var(--border)",
+            color: "var(--t2)",
+            background: "var(--subtle)",
+            fontFamily: "var(--mono)",
           }}
         >
-          {workflow.token.slice(0, 10)} ↗
+          {workflow.token.slice(0, 10)}
         </span>
       </div>
 
@@ -126,83 +127,50 @@ export default async function WorkflowSetupPage({
         style={{
           display: "grid",
           gridTemplateColumns: "1.35fr 1fr",
-          borderTop: "1px solid var(--hair)",
-          paddingTop: "8px",
-          paddingBottom: "40px",
-          gap: "0",
+          gap: "14px",
         }}
       >
-        {/* ── Left: snippet ── */}
-        <div style={{ paddingRight: "40px" }}>
-          {/* Snippet tabs + code */}
+        {/* ── Left: snippet + fail ── */}
+        <div>
+          {/* Snippet card with tabs */}
           <SnippetTabs pingUrl={pingUrl} failUrl={failUrl} />
 
-          {/* /fail section */}
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "8.5px",
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--ink-2)",
-              padding: "18px 0 8px",
-              borderBottom: "1px solid var(--hair-2)",
-            }}
-          >
-            Optional · report failures explicitly
-          </div>
-          <div style={{ padding: "14px 0 0" }}>
-            <div
-              style={{
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "var(--ink)",
-              }}
-            >
-              In your own error handling
+          {/* Report failures explicitly card */}
+          <Card style={{ marginTop: "14px" }}>
+            <CardHeader title="Report failures explicitly" count="Optional" />
+            <div style={{ padding: "14px 16px 16px" }}>
+              <div
+                style={{
+                  fontSize: "13.5px",
+                  color: "var(--t2)",
+                  lineHeight: "1.6",
+                  maxWidth: "56ch",
+                }}
+              >
+                A failure ping opens the incident immediately, no waiting for
+                silence. Add to your catch block or platform error route:
+              </div>
+              <div
+                style={{
+                  marginTop: "10px",
+                  fontFamily: "var(--mono)",
+                  fontSize: "12.5px",
+                  background: "var(--subtle)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  display: "inline-block",
+                  color: "var(--t1)",
+                }}
+              >
+                POST {failUrl}
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: "11.5px",
-                color: "var(--ink-2)",
-                margin: "4px 0 9px",
-                lineHeight: "1.55",
-                maxWidth: "52ch",
-              }}
-            >
-              A failure ping opens the incident immediately, no waiting for
-              silence. Add to your catch block or platform error route:
-            </div>
-            <code
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "10.5px",
-                color: "var(--pine)",
-                borderBottom: "1px solid var(--hair)",
-                paddingBottom: "2px",
-              }}
-            >
-              POST {failUrl}
-            </code>
-          </div>
+          </Card>
 
           {/* Simulate failure */}
           {workflow.status !== "down" && (
-            <div style={{ marginTop: "20px" }}>
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "8.5px",
-                  letterSpacing: ".12em",
-                  textTransform: "uppercase",
-                  color: "var(--ink-2)",
-                  paddingBottom: "8px",
-                  borderBottom: "1px solid var(--hair-2)",
-                  marginBottom: "10px",
-                }}
-              >
-                Test
-              </div>
+            <div style={{ marginTop: "14px" }}>
               <SimulateFailureForm workflowId={workflow.id} />
             </div>
           )}
@@ -212,11 +180,9 @@ export default async function WorkflowSetupPage({
               <Link
                 href={`/dashboard/incidents/${workflow.incidents[0].id}`}
                 style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
-                  letterSpacing: ".06em",
-                  textTransform: "uppercase",
-                  color: "var(--amber-deep)",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  color: "var(--amber-tx)",
                   textDecoration: "underline",
                   textUnderlineOffset: "3px",
                 }}
@@ -228,178 +194,176 @@ export default async function WorkflowSetupPage({
         </div>
 
         {/* ── Right: listening + canary ── */}
-        <div
-          style={{
-            borderLeft: "1px solid var(--hair-2)",
-            paddingLeft: "40px",
-          }}
-        >
-          {/* Listening */}
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "8.5px",
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--ink-2)",
-              padding: "18px 0 8px",
-              borderBottom: "1px solid var(--hair-2)",
-            }}
-          >
-            Listening
-          </div>
-
-          {workflow.lastPingAt ? (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  gap: "9px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "12px",
-                  color: "var(--green)",
-                  padding: "14px 0 0",
-                }}
-              >
-                <span
-                  style={{
-                    width: "7px",
-                    height: "7px",
-                    borderRadius: "50%",
-                    background: "var(--green)",
-                    flexShrink: 0,
-                    position: "relative",
-                    top: "-1px",
-                  }}
-                />
-                test ping received · {workflow.lastPingAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </div>
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
-                  color: "var(--ink-2)",
-                  marginTop: "8px",
-                  lineHeight: "1.9",
-                }}
-              >
-                {workflow.name} · marked {workflow.status}
-                <br />
-                expected every {workflow.expectedIntervalMinutes} min
-              </div>
-            </>
-          ) : (
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "11px",
-                color: "var(--ink-2)",
-                padding: "14px 0 0",
-              }}
-            >
-              Waiting for first ping…
-              <br />
-              <span style={{ fontSize: "9px" }}>
-                Paste the snippet above and run your workflow once.
-              </span>
-            </div>
-          )}
-
-          {/* Canary */}
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "8.5px",
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-              color: "var(--ink-2)",
-              padding: "26px 0 8px",
-              borderBottom: "1px solid var(--hair-2)",
-              marginTop: "26px",
-            }}
-          >
-            Canary · optional
-          </div>
-
-          {workflow.canaryAddress ? (
-            <div style={{ paddingTop: "4px" }}>
-              {[
-                {
-                  k: "Silent recipient address",
-                  v: workflow.canaryAddress,
-                  mono: true,
-                },
-                { k: "Stores", v: "arrival times only", mono: false },
-              ].map(({ k, v, mono }) => (
+        <div>
+          {/* Listening card */}
+          <Card>
+            <CardHeader title="Listening" />
+            {workflow.lastPingAt ? (
+              <>
                 <div
-                  key={k}
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    gap: "14px",
-                    padding: "10px 0",
-                    borderBottom: "1px solid var(--hair-2)",
+                    alignItems: "center",
+                    gap: "9px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "var(--green-tx)",
+                    padding: "15px 16px 0",
                   }}
                 >
                   <span
-                    style={{ fontSize: "12.5px", color: "var(--ink-2)", flexShrink: 0 }}
-                  >
-                    {k}
-                  </span>
-                  <span
                     style={{
-                      fontFamily: mono ? "var(--font-mono)" : undefined,
-                      fontSize: "10.5px",
-                      color: "var(--ink)",
-                      textAlign: "right",
-                      wordBreak: "break-all",
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "var(--green)",
+                      flexShrink: 0,
                     }}
-                  >
-                    {v}
-                  </span>
+                  />
+                  Test ping received ·{" "}
+                  {workflow.lastPingAt.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  })}
                 </div>
-              ))}
-
-              {workflow.expectations.length > 0 ? (
-                workflow.expectations.map((e) => (
-                  <div
-                    key={e.id}
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--t2)",
+                    padding: "8px 16px 15px",
+                    lineHeight: "1.8",
+                  }}
+                >
+                  {workflow.name} · marked {workflow.status}
+                  <br />
+                  Expected every {workflow.expectedIntervalMinutes} min ·{" "}
+                  <Link
+                    href="#"
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                      gap: "14px",
-                      padding: "10px 0",
-                      borderBottom: "1px solid var(--hair-2)",
+                      color: "var(--pine)",
+                      fontWeight: 500,
+                      textDecoration: "none",
                     }}
                   >
-                    <span style={{ fontSize: "12.5px", color: "var(--ink-2)" }}>
-                      Expected
+                    Edit
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "var(--t2)",
+                  padding: "14px 16px 16px",
+                  lineHeight: "1.7",
+                }}
+              >
+                Waiting for first ping…
+                <br />
+                <span style={{ fontSize: "12px", color: "var(--t3)" }}>
+                  Paste the snippet above and run your workflow once.
+                </span>
+              </div>
+            )}
+          </Card>
+
+          {/* Canary card */}
+          <Card style={{ marginTop: "14px" }}>
+            <CardHeader title="Canary" count="Optional" />
+            {workflow.canaryAddress ? (
+              <>
+                {/* kv rows */}
+                {[
+                  {
+                    k: "Silent recipient",
+                    v: workflow.canaryAddress,
+                    mono: true,
+                  },
+                  { k: "Stores", v: "Arrival times only", mono: false },
+                ].map(({ k, v, mono }) => (
+                  <div
+                    key={k}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "180px 1fr",
+                      gap: "12px",
+                      padding: "11px 16px",
+                      borderBottom: "1px solid var(--border)",
+                      fontSize: "13.5px",
+                      alignItems: "baseline",
+                    }}
+                  >
+                    <span
+                      style={{ color: "var(--t2)", fontWeight: 500, fontSize: "13px" }}
+                    >
+                      {k}
                     </span>
                     <span
                       style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "10.5px",
-                        color: "var(--ink)",
+                        fontFamily: mono ? "var(--mono)" : undefined,
+                        fontSize: mono ? "12px" : "13.5px",
+                        color: "var(--t1)",
+                        wordBreak: "break-all",
                       }}
                     >
-                      {e.rule} · ±{e.windowMins}m
+                      {v}
                     </span>
                   </div>
-                ))
-              ) : (
-                <div style={{ paddingTop: "12px" }}>
-                  <AddExpectationForm workflowId={workflow.id} />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ paddingTop: "12px" }}>
-              <EnableCanaryForm workflowId={workflow.id} />
-            </div>
-          )}
+                ))}
+
+                {workflow.expectations.length > 0 ? (
+                  workflow.expectations.map((e) => (
+                    <div
+                      key={e.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "180px 1fr",
+                        gap: "12px",
+                        padding: "11px 16px",
+                        borderBottom: "1px solid var(--border)",
+                        fontSize: "13.5px",
+                        alignItems: "baseline",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "var(--t2)",
+                          fontWeight: 500,
+                          fontSize: "13px",
+                        }}
+                      >
+                        Expected
+                      </span>
+                      <span style={{ fontSize: "13.5px", color: "var(--t1)" }}>
+                        {e.rule} · window {e.windowMins} min{" "}
+                        <Link
+                          href="#"
+                          style={{
+                            color: "var(--pine)",
+                            fontWeight: 500,
+                            fontSize: "13px",
+                            textDecoration: "none",
+                          }}
+                        >
+                          Edit
+                        </Link>
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ padding: "14px 16px" }}>
+                    <AddExpectationForm workflowId={workflow.id} />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ padding: "14px 16px" }}>
+                <EnableCanaryForm workflowId={workflow.id} />
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </div>

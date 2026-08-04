@@ -5,168 +5,192 @@
 <title>Euclio — Northgate Dental · Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#F5F2EB; --lift:#FCFBF8; --rail:#1E362B; --rail-2:#24402F;
-    --rail-text:#F6F2E9; --rail-muted:rgba(246,242,233,.45);
-    --ink:#1C2B22; --ink-2:#55645A; --pine:#1E362B; --green:#2F6B4A;
-    --amber:#B0852E; --amber-deep:#8A6423;
-    --hair:rgba(28,43,34,.16); --hair-2:rgba(28,43,34,.07);
-    --serif:'Spectral',serif; --sans:'Instrument Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+    --canvas:#FFFFFF; --subtle:#F9FAFB; --border:#EAECF0; --border-2:#D0D5DD;
+    --t1:#101828; --t2:#475467; --t3:#667085;
+    --pine:#1E362B; --pine-2:#24402F; --rail-text:#F5F6F4; --rail-muted:rgba(245,246,244,.55);
+    --amber-bg:#FFFAEB; --amber-tx:#B54708; --amber-bd:#FEDF89; --amber:#F79009;
+    --green-bg:#ECFDF3; --green-tx:#067647; --green-bd:#ABEFC6; --green:#17B26A;
+    --gray-bg:#F9FAFB; --gray-tx:#475467; --gray-bd:#EAECF0; --gray:#98A2B3;
+    --sh:0 1px 2px rgba(16,24,40,.05); --f:'Inter',sans-serif;
+    --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,monospace;
   }
   *{box-sizing:border-box;margin:0;}
-  body{background:#E6E3DA;font-family:var(--sans);color:var(--ink);padding:40px;
-       display:flex;justify-content:center;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
-  .app{width:1180px;height:740px;background:var(--paper);border-radius:10px;overflow:hidden;
-       display:grid;grid-template-columns:64px 1fr;box-shadow:0 30px 70px -35px rgba(20,30,25,.45);}
-  .rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
-  .cl{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-      font-family:var(--mono);font-size:10px;color:var(--rail-muted);position:relative;margin:3px 0;}
-  .cl.on{color:var(--rail-text);background:var(--rail-2);}
-  .cl.on:before{content:"";position:absolute;left:-15px;width:3px;height:18px;border-radius:2px;background:var(--amber);}
-  .cl .b{position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;background:var(--amber);}
+  body{background:#F2F4F7;font-family:var(--f);color:var(--t1);padding:40px;display:flex;justify-content:center;
+       -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
+  .app{width:1180px;height:760px;background:var(--canvas);border-radius:12px;overflow:hidden;
+       display:grid;grid-template-columns:64px 1fr;box-shadow:0 24px 48px -12px rgba(16,24,40,.18);}
+  .rail{background:var(--pine);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
+  .cl{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:600;color:var(--rail-muted);position:relative;margin:3px 0;}
+  .cl.on{color:var(--rail-text);background:var(--pine-2);}
+  .cl .b{position:absolute;right:0;top:0;width:7px;height:7px;border-radius:50%;background:var(--amber);border:1.5px solid var(--pine);}
   .rail .sp{flex:1;}
-  .gear{color:var(--rail-muted);font-size:14px;margin-bottom:12px;}
-  .me{width:28px;height:28px;border-radius:50%;color:var(--rail-text);background:var(--rail-2);
-      display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;}
-
-  .main{min-width:0;padding:28px 44px 0;}
-  .head{display:flex;align-items:center;gap:14px;}
-  .h-name{font-family:var(--serif);font-size:24px;font-weight:500;}
-  .h-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);}
+  .me{width:30px;height:30px;border-radius:50%;color:var(--rail-text);background:var(--pine-2);
+      display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;}
+  svg.ic{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;}
+  .main{min-width:0;padding:28px 32px 0;overflow:hidden;}
+  .crumb{font-size:13px;color:var(--t3);display:flex;gap:6px;align-items:center;}
+  .crumb b{color:var(--t2);font-weight:500;}
+  .head{display:flex;align-items:flex-start;gap:14px;margin-top:6px;}
+  .h-name{font-size:20px;font-weight:600;letter-spacing:-.01em;}
+  .h-sub{font-size:13px;color:var(--t2);margin-top:3px;}
   .h-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
-  .search{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;color:var(--ink-2);
-          border:1px solid var(--hair);border-radius:999px;padding:6px 13px;background:var(--lift);width:180px;}
-  .sel{font-family:var(--mono);font-size:9.5px;color:var(--ink);border:1px solid var(--hair);
-       border-radius:999px;padding:6px 11px;background:var(--lift);}
-  .btn{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-       border-radius:999px;padding:8px 16px;border:none;background:var(--pine);color:var(--rail-text);}
-
-  .figures{display:flex;gap:34px;margin:18px 0 0;padding-bottom:14px;border-bottom:1px solid var(--hair);}
-  .fig .v{font-family:var(--mono);font-size:15px;font-weight:600;}
-  .fig .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin-top:3px;}
-
-  /* month bar — navigation and timeline in one */
-  .months{display:flex;align-items:center;gap:6px;padding:16px 0 4px;}
-  .m-y{font-family:var(--mono);font-size:10px;font-weight:600;margin-right:8px;}
-  .m-nav{font-family:var(--mono);font-size:11px;color:var(--ink-2);padding:0 4px;}
-  .m{position:relative;font-family:var(--mono);font-size:10px;color:var(--ink-2);border-radius:999px;padding:6px 13px;}
-  .m.on{background:var(--pine);color:var(--rail-text);}
-  .m .t{position:absolute;left:50%;transform:translateX(-50%);bottom:-1px;width:5px;height:5px;border-radius:50%;background:var(--amber);}
-  .m.on .t{bottom:3px;}
-
-  .grid2{display:grid;grid-template-columns:1.58fr 1fr;gap:14px;margin-top:14px;}
-  .panel{background:var(--lift);border:1px solid var(--hair-2);border-radius:10px;overflow:hidden;}
-  .panel + .panel{margin-top:14px;}
-  .p-h{display:flex;align-items:baseline;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hair);
-       font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);}
-  .p-h .r{margin-left:auto;letter-spacing:.04em;text-transform:none;}
-  .wfr{display:grid;grid-template-columns:1fr auto auto 14px;gap:12px;align-items:center;
-       padding:12px 16px;border-bottom:1px solid var(--hair-2);font-size:13px;cursor:pointer;}
+  .when{font-size:13px;color:var(--t3);}
+  .search{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t3);border:1px solid var(--border-2);
+          border-radius:8px;padding:8px 12px;background:#fff;box-shadow:var(--sh);width:200px;}
+  .sel{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--t2);
+       border:1px solid var(--border-2);border-radius:8px;padding:8px 12px;background:#fff;box-shadow:var(--sh);}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:8px;
+       padding:9px 14px;border:1px solid var(--pine);background:var(--pine);color:#fff;box-shadow:var(--sh);}
+  .btn2{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:8px;
+        padding:9px 14px;border:1px solid var(--border-2);background:#fff;color:var(--t2);box-shadow:var(--sh);}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 16px;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--sh);}
+  .stat .k{font-size:13px;font-weight:500;color:var(--t2);}
+  .stat .v{font-size:24px;font-weight:600;letter-spacing:-.01em;margin-top:6px;}
+  .stat .v.g{color:var(--green-tx);} .stat .v.a{color:var(--amber-tx);}
+  .stat .v small{font-size:14px;font-weight:500;color:var(--t2);}
+  .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;}
+  .card{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh);overflow:hidden;}
+  .card + .card{margin-top:14px;}
+  .c-h{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--border);}
+  .c-t{font-size:15px;font-weight:600;}
+  .cnt{font-size:12px;font-weight:500;color:var(--t2);background:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:1px 8px;}
+  .c-h .r{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2);}
+  .warn-card{border-color:var(--amber-bd);}
+  .warn-card .c-h{background:var(--amber-bg);border-bottom-color:var(--amber-bd);}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;border-radius:999px;padding:3px 9px;border:1px solid;white-space:nowrap;}
+  .badge .d{width:6px;height:6px;border-radius:50%;}
+  .badge.open{color:var(--amber-tx);background:var(--amber-bg);border-color:var(--amber-bd);} .badge.open .d{background:var(--amber);}
+  .badge.res{color:var(--green-tx);background:var(--green-bg);border-color:var(--green-bd);} .badge.res .d{background:var(--green);}
+  .badge.quiet{color:var(--gray-tx);background:var(--gray-bg);border-color:var(--gray-bd);} .badge.quiet .d{background:var(--gray);}
+  .mono{font-family:var(--mono);font-size:12px;}
+  .kv{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:13.5px;align-items:baseline;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--t2);font-weight:500;font-size:13px;}
+  .kv .a{color:var(--amber-tx);font-weight:600;}
+  .tl{padding:8px 16px 12px 22px;}
+  .tl-e{position:relative;padding:9px 0 9px 22px;border-left:2px solid var(--border);}
+  .tl-e:last-child{border-left-color:transparent;}
+  .tl-e .node{position:absolute;left:-5px;top:14px;width:8px;height:8px;border-radius:50%;background:var(--gray);border:2px solid #fff;}
+  .tl-e.a .node{background:var(--amber);} .tl-e.g .node{background:var(--green);}
+  .tl-top{display:flex;align-items:baseline;gap:10px;}
+  .tl-k{font-size:12px;font-weight:600;color:var(--t2);}
+  .tl-e.a .tl-k{color:var(--amber-tx);} .tl-e.g .tl-k{color:var(--green-tx);}
+  .tl-t{margin-left:auto;font-size:12px;color:var(--t3);}
+  .tl-x{font-size:13.5px;line-height:1.55;margin-top:2px;color:var(--t1);}
+  .tl-x .note{color:var(--t2);font-style:italic;}
+  .tl-x .who{font-size:11px;font-weight:600;color:var(--t3);margin-left:6px;}
+  .th,.trw{display:grid;gap:12px;align-items:baseline;padding:9px 16px;}
+  .th{background:var(--subtle);border-bottom:1px solid var(--border);}
+  .th span{font-size:12px;font-weight:500;color:var(--t3);}
+  .trw{border-bottom:1px solid var(--border);font-size:13.5px;}
+  .trw:last-of-type{border-bottom:none;}
+  .trw .g{color:var(--green-tx);font-weight:500;}
+  .sum-row{padding:11px 16px;border-top:1px solid var(--border);font-size:13px;font-weight:600;background:var(--subtle);}
+  .slot{border:1px dashed var(--amber-bd);background:var(--amber-bg);border-radius:8px;padding:10px 12px;
+        font-size:13px;font-style:italic;color:var(--amber-tx);}
+  .link{color:var(--pine);font-weight:500;font-size:13px;}
+  .foot-note{padding:11px 16px;font-size:12px;color:var(--t3);border-top:1px solid var(--border);background:var(--subtle);}
+  
+  .mbar{display:flex;align-items:center;gap:8px;margin:2px 0 16px;}
+  .mbar .y{font-size:13px;font-weight:600;margin-right:6px;}
+  .m{position:relative;font-size:13px;font-weight:500;color:var(--t2);border-radius:8px;padding:7px 14px;border:1px solid transparent;}
+  .m:hover{background:var(--subtle);}
+  .m.on{background:var(--pine);color:#fff;}
+  .m .t{position:absolute;left:50%;transform:translateX(-50%);bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--amber);}
+  .m.on .t{background:#fff;opacity:.7;}
+  .ent{display:grid;grid-template-columns:70px 1fr auto 24px;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;}
+  .ent:hover{background:var(--subtle);}
+  .ent .d{font-size:12px;color:var(--t3);line-height:1.5;}
+  .ent .t{font-size:14.5px;font-weight:600;}
+  .ent .st{font-size:13px;color:var(--t2);margin-top:2px;}
+  .ent .st b{color:var(--t1);font-weight:600;}
+  .wftag{display:inline-block;font-size:11px;font-weight:500;color:var(--t2);background:var(--subtle);border:1px solid var(--border);border-radius:5px;padding:1px 7px;margin-left:8px;vertical-align:1px;}
+  .wfr{display:grid;grid-template-columns:1fr auto auto 20px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px;cursor:pointer;}
+  .wfr:hover{background:var(--subtle);}
   .wfr:last-child{border-bottom:none;}
   .wfr .n{font-weight:500;}
-  .wfr .c{font-family:var(--mono);font-size:9px;color:var(--ink-2);}
-  .wfr .c.on{color:var(--green);}
-  .wfr .chv{color:var(--ink-2);font-size:10px;}
-  .rec{padding:12px 16px;font-family:var(--mono);font-size:9.5px;color:var(--ink-2);line-height:2;}
+  .wfr .can{font-size:12px;color:var(--t3);}
+  .wfr .can.on{color:var(--green-tx);font-weight:500;}
+  .rec{padding:13px 16px;font-size:13px;color:var(--t2);line-height:1.8;}
 
-  /* compact incident entry — the one loud element, links out */
-  .entry{display:grid;grid-template-columns:66px 1fr auto 20px;gap:16px;align-items:center;cursor:pointer;
-         background:var(--lift);border:1px solid var(--hair-2);border-left:3px solid var(--amber);
-         border-radius:0 10px 10px 0;box-shadow:0 10px 32px -20px rgba(30,54,43,.28);
-         padding:15px 16px 15px 14px;margin:8px 0;}
-  .entry .d{font-family:var(--mono);font-size:10px;color:var(--ink-2);}
-  .entry .t{font-family:var(--serif);font-size:16px;font-weight:500;}
-  .entry .st{font-size:12.5px;color:var(--ink-2);margin-top:3px;}
-  .entry .st b{color:var(--ink);font-weight:500;}
-  .wf{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);
-      border:1px solid var(--hair);border-radius:4px;padding:2px 6px;margin-left:8px;position:relative;top:-2px;}
-  .chip{display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.07em;font-weight:600;
-        border-radius:5px;padding:4px 8px;}
-  .chip.res{color:var(--green);background:rgba(47,107,74,.1);}
-  .entry .chev{color:var(--ink-2);font-size:11px;text-align:right;}
-
-  .row{display:grid;grid-template-columns:66px 1fr auto;gap:16px;align-items:baseline;
-       padding:13px 16px 13px 17px;border-bottom:1px solid var(--hair-2);font-size:13px;}
-  .row .d{font-family:var(--mono);font-size:10px;color:var(--ink-2);}
-  .row .x{color:var(--ink-2);}
-  .row .m2{font-family:var(--mono);font-size:10px;color:var(--ink-2);}
-  .row .x .mi{font-family:var(--serif);font-style:italic;color:var(--ink);}
-  .foot{padding:16px 2px;font-family:var(--mono);font-size:9px;color:var(--ink-2);}
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="rail">
-    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F6F2E9" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
+    <svg width="20" height="20" viewBox="0 0 64 64"><g fill="none" stroke="#F5F6F4" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="32" r="26.5"/><path d="M22 16 V48"/><path d="M22 16 H44"/><path d="M22 32 H27 L30 24 L33 40 L36 32 H43"/><path d="M22 48 H44"/></g></svg>
     <div style="height:10px"></div>
     <div class="cl on">ND</div><div class="cl">CR</div><div class="cl">MB<span class="b"></span></div><div class="cl">BP</div>
-    <div class="sp"></div><div class="gear">&#9881;</div><div class="me">AR</div>
+    <div class="sp"></div><div class="me">AR</div>
   </aside>
   <div class="main">
     <div class="head">
       <div>
         <div class="h-name">Northgate Dental</div>
-        <div class="h-sub" style="margin-top:4px;">Ledger &middot; kept since Feb 02</div>
+        <div class="h-sub">Ledger &middot; kept since Feb 02</div>
       </div>
       <div class="h-right">
-        <span class="search">&#8981; search the record&hellip;</span>
-        <span class="sel">All workflows &#8964;</span>
+        <span class="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search the record&hellip;</span>
+        <span class="sel">All workflows<svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg></span>
         <span class="sel">Incidents only</span>
-        <button class="btn">Share receipt</button>
+        <span class="btn">Share receipt</span>
       </div>
     </div>
-
-    <div class="figures">
-      <div class="fig"><div class="v">212</div><div class="k">receipts &middot; 30d</div></div>
-      <div class="fig"><div class="v">1,438</div><div class="k">check-ins &middot; 30d</div></div>
-      <div class="fig"><div class="v">1</div><div class="k">incident &middot; 30d</div></div>
-      <div class="fig"><div class="v">26 days</div><div class="k">longest quiet run</div></div>
+    <div class="stats">
+      <div class="stat"><div class="k">Receipts &middot; 30d</div><div class="v">212</div></div>
+      <div class="stat"><div class="k">Check-ins &middot; 30d</div><div class="v">1,438</div></div>
+      <div class="stat"><div class="k">Incidents &middot; 30d</div><div class="v">1</div></div>
+      <div class="stat"><div class="k">Longest quiet run</div><div class="v">26 <small>days</small></div></div>
     </div>
-
-    <div class="months">
-      <span class="m-y">2026</span>
-      <span class="m-nav">&#8249;</span>
-      <span class="m">Feb</span>
-      <span class="m">Mar</span>
-      <span class="m">Apr<span class="t"></span></span>
-      <span class="m">May<span class="t"></span></span>
-      <span class="m on">Jun<span class="t"></span></span>
-      <span class="m-nav">&#8250;</span>
+    <div class="mbar">
+      <span class="y">2026</span><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m15 18-6-6 6-6"/></svg>
+      <span class="m">Feb</span><span class="m">Mar</span><span class="m">Apr<span class="t"></span></span>
+      <span class="m">May<span class="t"></span></span><span class="m on">Jun<span class="t"></span></span><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg>
     </div>
-
-    <div class="grid2">
-    <div class="panel">
-      <div class="p-h"><span>Register &middot; June</span><span class="r">3 entries &middot; newest first</span></div>
-      <div style="padding:4px 12px 6px;">
-    <div class="entry">
-      <span class="d">Jun 14<br>09:02</span>
+    <div class="grid">
       <div>
-        <span class="t">12-minute pause</span><span class="wf">appointment reminders</span>
-        <div class="st"><b>4 of 4 received</b> &middot; caught in 31s &middot; fail ping: timeout at the calendar API</div>
+        <div class="card">
+          <div class="c-h"><span class="c-t">Register &middot; June</span><span class="cnt">3</span><span class="r">Newest first</span></div>
+          <div class="ent">
+            <span class="d">Jun 14<br>09:02</span>
+            <div><span class="t">12-minute pause</span><span class="wftag">Appointment reminders</span>
+              <div class="st"><b>4 of 4 received</b> &middot; caught in 31s &middot; fail ping: timeout at the calendar API</div></div>
+            <span class="badge res"><span class="d" style="width:6px;height:6px;color:transparent;"></span>Resolved &middot; 9:41</span>
+            <span style="color:var(--t3);"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg></span>
+          </div>
+          <div class="ent">
+            <span class="d">Jun 9<br>16:41</span>
+            <div><span class="t" style="font-weight:500;">Unexpected send caught by the canary</span><span class="wftag">Appointment reminders</span>
+              <div class="st">Outside the schedule &middot; sender matches the address retired Apr 12</div></div>
+            <span class="badge open"><span class="d"></span>Unmatched</span>
+            <span style="color:var(--t3);"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg></span>
+          </div>
+          <div class="ent" style="cursor:default;">
+            <span class="d">May 19 &ndash;<br>Jun 13</span>
+            <div><span class="t" style="font-weight:500;color:var(--t2);">Quiet run &middot; 26 days</span>
+              <div class="st">212 receipts &middot; 0 outstanding</div></div>
+            <span class="badge quiet"><span class="d"></span>Quiet</span><span></span>
+          </div>
+          <div class="foot-note">Entries are appended, never edited.</div>
+        </div>
       </div>
-      <span><span class="chip res">RESOLVED &middot; 9:41</span></span>
-      <span class="chev">&#9654;</span>
-    </div>
-
-    <div class="row"><span class="d">Jun 9</span><span class="x">Unexpected send caught by the canary &middot; outside schedule</span><span class="m2">appointment reminders &middot; &#9654;</span></div>
-    <div class="row" style="border-bottom:none;"><span class="d">May 19 &ndash; Jun 13</span><span class="x">Quiet run &middot; 26 days</span><span class="m2">212 receipts &middot; 0 outstanding</span></div>
+      <div>
+        <div class="card">
+          <div class="c-h"><span class="c-t">Workflows</span><span class="cnt">3</span></div>
+          <div class="wfr"><span class="n">Appointment reminders</span><span class="badge res"><span class="d"></span>Resolved &middot; 9:41</span><span class="can on">canary on</span><span style="color:var(--t3);"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg></span></div>
+          <div class="wfr"><span class="n">Recall letters</span><span class="badge quiet"><span class="d"></span>Quiet &middot; 33 days</span><span class="can on">canary on</span><span style="color:var(--t3);"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg></span></div>
+          <div class="wfr"><span class="n">Invoice sync</span><span class="badge quiet"><span class="d"></span>Quiet &middot; 72 days</span><span class="can">canary off</span><span style="color:var(--t3);"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg></span></div>
+        </div>
+        <div class="card">
+          <div class="c-h"><span class="c-t">The record</span></div>
+          <div class="rec">Kept since Feb 02 &middot; retained 12 months<br>Entries are appended, never edited.</div>
+        </div>
       </div>
-    </div>
-
-    <div>
-      <div class="panel">
-        <div class="p-h"><span>Workflows &middot; 3</span></div>
-        <div class="wfr"><span class="n">Appointment reminders</span><span class="chip res">RESOLVED &middot; 9:41</span><span class="c on">canary on</span><span class="chv">&#9654;</span></div>
-        <div class="wfr"><span class="n">Recall letters</span><span class="c" style="font-size:8.5px;letter-spacing:.07em;font-weight:600;color:var(--ink-2);background:rgba(28,43,34,.06);border-radius:5px;padding:4px 8px;">QUIET &middot; 33 DAYS</span><span class="c on">canary on</span><span class="chv">&#9654;</span></div>
-        <div class="wfr"><span class="n">Invoice sync</span><span class="c" style="font-size:8.5px;letter-spacing:.07em;font-weight:600;color:var(--ink-2);background:rgba(28,43,34,.06);border-radius:5px;padding:4px 8px;">QUIET &middot; 72 DAYS</span><span class="c">canary off</span><span class="chv">&#9654;</span></div>
-      </div>
-      <div class="panel">
-        <div class="p-h"><span>The record</span></div>
-        <div class="rec">Kept since Feb 02 &middot; retained 12 months<br>Entries are appended, never edited.</div>
-      </div>
-    </div>
     </div>
   </div>
 </div>

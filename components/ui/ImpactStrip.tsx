@@ -4,12 +4,9 @@ interface StatPair {
 }
 
 interface ImpactStripProps {
-  /** Hero figure — the most important number */
   heroValue: string;
   heroLabel: string;
-  /** Semantic color for the hero: "green" | "amber" */
   heroColor?: "green" | "amber";
-  /** Additional stat pairs shown to the right */
   stats: StatPair[];
 }
 
@@ -20,38 +17,31 @@ export function ImpactStrip({
   stats,
 }: ImpactStripProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "stretch",
-      }}
-    >
+    <div style={{ display: "flex", alignItems: "stretch" }}>
       {/* Hero */}
       <div
         style={{
-          padding: "18px 28px 16px",
-          borderRight: "1px solid var(--hair-2)",
+          padding: "16px 26px 14px",
+          borderRight: "1px solid var(--border)",
           flexShrink: 0,
         }}
       >
         <div
           style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "33px",
+            fontSize: "30px",
             fontWeight: 600,
-            color: heroColor === "green" ? "var(--green)" : "var(--amber-deep)",
-            letterSpacing: "-.02em",
+            letterSpacing: "-.01em",
+            color:
+              heroColor === "green" ? "var(--green-tx)" : "var(--amber-tx)",
           }}
         >
           {heroValue}
         </div>
         <div
           style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "9px",
-            letterSpacing: ".12em",
-            textTransform: "uppercase",
-            color: "var(--ink-2)",
+            fontSize: "13px",
+            fontWeight: 500,
+            color: "var(--t2)",
             marginTop: "4px",
           }}
         >
@@ -64,8 +54,8 @@ export function ImpactStrip({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "34px",
-          padding: "0 30px",
+          gap: "36px",
+          padding: "0 28px",
           flexWrap: "wrap",
         }}
       >
@@ -73,8 +63,7 @@ export function ImpactStrip({
           <div key={s.label}>
             <div
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "15px",
+                fontSize: "17px",
                 fontWeight: 600,
               }}
             >
@@ -82,12 +71,10 @@ export function ImpactStrip({
             </div>
             <div
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "8.5px",
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-                color: "var(--ink-2)",
-                marginTop: "4px",
+                fontSize: "12.5px",
+                fontWeight: 500,
+                color: "var(--t2)",
+                marginTop: "3px",
               }}
             >
               {s.label}

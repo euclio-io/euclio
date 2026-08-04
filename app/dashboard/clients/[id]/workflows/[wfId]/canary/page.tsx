@@ -4,21 +4,21 @@ import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
 import { deriveStatus } from "@/lib/status";
-import { Chip } from "@/components/ui/Chip";
-import { Panel, PanelHeader } from "@/components/ui/Panel";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, ChevronRight } from "@/components/ui/Card";
 import { ImpactStrip } from "@/components/ui/ImpactStrip";
 
 /**
  * Canary view — per-workflow canary sensor page.
- * Matches euclio-canary-view.html.
+ * Matches euclio-canary-view.html (v6 design system).
  *
  * Shows:
- *   - Breadcrumb + workflow name + status chip
- *   - Config row: canary address + schedule rules
- *   - ImpactStrip: streak (consecutive matched expectations) as hero
- *   - Receipts log (recent 30 receipts)
- *   - Daily register (receipts grouped by day)
- *   - Incidents list (incidents for this workflow)
+ *   - Breadcrumb + workflow name + status badge
+ *   - Config kv rows: canary address + schedule rules
+ *   - ImpactStrip card: streak (consecutive matched) as hero
+ *   - Receipts log card (recent 30 receipts)
+ *   - Daily register card (receipts grouped by day)
+ *   - Incidents card (incidents for this workflow)
  *
  * Ownership: all queries scoped by accountId inside the where clause.
  */
@@ -29,9 +29,7 @@ function formatTime(date: Date, timezone: string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  })
-    .format(date)
-    .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+  }).format(date);
 }
 
 function formatDate(date: Date, timezone: string): string {
@@ -56,7 +54,6 @@ export default async function CanaryPage({
   const tz = account.timezone ?? "UTC";
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // Ownership-scoped workflow fetch
   const workflow = await prisma.workflow.findFirst({
     where: {
       id: wfId,
@@ -89,7 +86,6 @@ export default async function CanaryPage({
 
   if (!workflow || !workflow.canaryAddress) notFound();
 
-  // Status chip
   const inc = workflow.incidents[0];
   const hasOpen = inc?.status === "open";
   const statusResult = deriveStatus({
@@ -100,7 +96,6 @@ export default async function CanaryPage({
     timezone: tz,
   });
 
-  // Recent receipts (30d)
   const receipts = await prisma.canaryReceipt.findMany({
     where: {
       workflowId: wfId,
@@ -117,14 +112,12 @@ export default async function CanaryPage({
     },
   });
 
-  // Streak: consecutive matched receipts from most recent
   let streak = 0;
   for (const r of receipts) {
     if (r.expectationId) streak++;
     else break;
   }
 
-  // Total receipts 30d
   const totalReceipts30d = await prisma.canaryReceipt.count({
     where: {
       workflowId: wfId,
@@ -144,7 +137,6 @@ export default async function CanaryPage({
 
   const unexpectedReceipts30d = totalReceipts30d - matchedReceipts30d;
 
-  // Incidents for this workflow
   const incidents = await prisma.incident.findMany({
     where: {
       workflowId: wfId,
@@ -163,7 +155,6 @@ export default async function CanaryPage({
     },
   });
 
-  // Group receipts by day for daily register
   const byDay = new Map<string, typeof receipts>();
   for (const r of receipts) {
     const key = formatDate(r.receivedAt, tz);
@@ -173,164 +164,136 @@ export default async function CanaryPage({
   const dailyEntries = [...byDay.entries()].slice(0, 7);
 
   return (
-    <div style={{ padding: "24px 40px 0", minWidth: 0 }}>
-      {/* Breadcrumb */}
+    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
+      {/* ── Breadcrumb ── */}
       <div
         style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "9.5px",
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: "var(--ink-2)",
+          fontSize: "13px",
+          color: "var(--t3)",
+          display: "flex",
+          gap: "6px",
+          alignItems: "center",
         }}
       >
         <Link
           href={`/dashboard/clients/${clientId}`}
-          style={{ color: "var(--ink-2)", textDecoration: "none" }}
+          style={{ color: "var(--t2)", fontWeight: 500, textDecoration: "none" }}
         >
           {workflow.client.name}
         </Link>
-        {" / "}
+        <span>/</span>
         <Link
           href={`/dashboard/clients/${clientId}/workflows/${wfId}`}
-          style={{ color: "var(--ink-2)", textDecoration: "none" }}
+          style={{ color: "var(--t2)", fontWeight: 500, textDecoration: "none" }}
         >
           {workflow.name}
         </Link>
-        {" / "}
-        Canary
+        <span>/</span>
+        <span>Canary</span>
       </div>
 
-      {/* Head */}
+      {/* ── Head ── */}
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
+          alignItems: "flex-start",
           gap: "14px",
-          marginTop: "7px",
+          marginTop: "6px",
         }}
       >
         <span
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "23px",
-            fontWeight: 500,
-          }}
+          style={{ fontSize: "20px", fontWeight: 600, letterSpacing: "-.01em" }}
         >
           {workflow.name}
         </span>
-        <Chip kind={statusResult.kind} label={statusResult.chip} />
-        <div
-          style={{
-            marginLeft: "auto",
-            display: "flex",
-            gap: "16px",
-            alignItems: "baseline",
-          }}
-        >
+        <span style={{ position: "relative", top: "2px" }}>
+          <Badge kind={statusResult.kind} label={statusResult.chip} />
+        </span>
+        <div style={{ marginLeft: "auto" }}>
           <Link
             href={`/dashboard/clients/${clientId}/workflows/${wfId}`}
             style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "9.5px",
-              letterSpacing: ".06em",
-              textTransform: "uppercase",
-              color: "var(--ink)",
-              textDecoration: "underline",
-              textUnderlineOffset: "3px",
-              textDecorationColor: "var(--hair)",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "var(--pine)",
+              textDecoration: "none",
             }}
           >
-            Setup
+            Setup →
           </Link>
         </div>
       </div>
 
-      {/* Config row */}
-      <Panel style={{ marginTop: "14px" }}>
-        <div
-          style={{
-            display: "flex",
-            gap: "30px",
-            padding: "11px 16px",
-            fontFamily: "var(--font-mono)",
-            fontSize: "10.5px",
-            alignItems: "baseline",
-          }}
-        >
-          <div>
+      {/* ── Config card ── */}
+      <Card style={{ marginTop: "16px" }}>
+        {[
+          { k: "Silent recipient", v: workflow.canaryAddress!, mono: true },
+          { k: "Stores", v: "Arrival times only", mono: false },
+          ...workflow.expectations.map((e) => ({
+            k: "Expected",
+            v: `${e.rule} · window ${e.windowMins} min`,
+            mono: false,
+          })),
+        ].map(({ k, v, mono }, i, arr) => (
+          <div
+            key={k + i}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "180px 1fr",
+              gap: "12px",
+              padding: "11px 16px",
+              borderBottom:
+                i < arr.length - 1 ? "1px solid var(--border)" : "none",
+              fontSize: "13.5px",
+              alignItems: "baseline",
+            }}
+          >
+            <span
+              style={{ color: "var(--t2)", fontWeight: 500, fontSize: "13px" }}
+            >
+              {k}
+            </span>
             <span
               style={{
-                fontSize: "8.5px",
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-                color: "var(--ink-2)",
-                marginRight: "8px",
+                fontFamily: mono ? "var(--mono)" : undefined,
+                fontSize: mono ? "12px" : "13.5px",
+                color: "var(--t1)",
+                wordBreak: "break-all",
               }}
             >
-              Address
+              {v}
             </span>
-            {workflow.canaryAddress}
           </div>
-          {workflow.expectations.map((exp) => (
-            <div key={exp.id}>
-              <span
-                style={{
-                  fontSize: "8.5px",
-                  letterSpacing: ".1em",
-                  textTransform: "uppercase",
-                  color: "var(--ink-2)",
-                  marginRight: "8px",
-                }}
-              >
-                Schedule
-              </span>
-              {exp.rule}
-              <span
-                style={{
-                  fontSize: "9px",
-                  color: "var(--ink-2)",
-                  marginLeft: "8px",
-                }}
-              >
-                ±{exp.windowMins}m window
-              </span>
-            </div>
-          ))}
-        </div>
-      </Panel>
+        ))}
+      </Card>
 
-      {/* ImpactStrip — streak as hero */}
-      <Panel loud style={{ marginTop: "14px" }}>
+      {/* ── ImpactStrip card ── */}
+      <Card style={{ marginTop: "14px" }}>
         <ImpactStrip
           heroValue={String(streak)}
-          heroLabel="streak"
+          heroLabel="Streak"
           heroColor="green"
           stats={[
-            { value: String(totalReceipts30d), label: "receipts · 30d" },
-            { value: String(matchedReceipts30d), label: "matched · 30d" },
-            {
-              value: String(unexpectedReceipts30d),
-              label: "unexpected · 30d",
-            },
+            { value: String(totalReceipts30d), label: "Receipts · 30d" },
+            { value: String(matchedReceipts30d), label: "Matched · 30d" },
+            { value: String(unexpectedReceipts30d), label: "Unexpected · 30d" },
           ]}
         />
-      </Panel>
+      </Card>
 
-      {/* Two-column grid */}
+      {/* ── Two-column grid ── */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "1.22fr 1fr",
           gap: "14px",
           marginTop: "14px",
-          paddingBottom: "40px",
         }}
       >
         {/* Receipts log */}
-        <Panel>
-          <PanelHeader
-            label="Receipts"
+        <Card>
+          <CardHeader
+            title="Receipts"
             count={receipts.length}
             right="30d"
             collapse="open"
@@ -339,34 +302,37 @@ export default async function CanaryPage({
             <div
               style={{
                 padding: "12px 16px",
-                fontFamily: "var(--font-mono)",
-                fontSize: "10px",
-                color: "var(--ink-2)",
+                fontSize: "13px",
+                color: "var(--t2)",
               }}
             >
               No receipts yet.
             </div>
           ) : (
             <>
+              {/* Table header */}
               <div
                 style={{
                   display: "grid",
                   gridTemplateColumns: "64px 84px 56px 1fr 14px",
                   gap: "10px",
-                  padding: "8px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "8px",
-                  letterSpacing: ".1em",
-                  textTransform: "uppercase",
-                  color: "var(--ink-2)",
-                  borderBottom: "1px solid var(--hair-2)",
+                  padding: "9px 16px",
+                  background: "var(--subtle)",
+                  borderBottom: "1px solid var(--border)",
                 }}
               >
-                <span>date</span>
-                <span>time</span>
-                <span>match</span>
-                <span>from</span>
-                <span />
+                {["Date", "Time", "Match", "From", ""].map((h) => (
+                  <span
+                    key={h}
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--t3)",
+                    }}
+                  >
+                    {h}
+                  </span>
+                ))}
               </div>
               {receipts.map((r) => (
                 <div
@@ -375,22 +341,22 @@ export default async function CanaryPage({
                     display: "grid",
                     gridTemplateColumns: "64px 84px 56px 1fr 14px",
                     gap: "10px",
-                    padding: "8px 16px",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "10.5px",
-                    borderBottom: "1px solid var(--hair-2)",
+                    padding: "9px 16px",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: "13px",
                     alignItems: "baseline",
+                    fontFamily: "var(--mono)",
                   }}
                 >
-                  <span style={{ color: "var(--ink-2)" }}>
+                  <span style={{ color: "var(--t3)" }}>
                     {formatDate(r.receivedAt, tz)}
                   </span>
                   <span>{formatTime(r.receivedAt, tz)}</span>
                   <span
                     style={{
                       color: r.expectationId
-                        ? "var(--green)"
-                        : "var(--amber-deep)",
+                        ? "var(--green-tx)"
+                        : "var(--amber-tx)",
                       fontWeight: 600,
                     }}
                   >
@@ -398,8 +364,8 @@ export default async function CanaryPage({
                   </span>
                   <span
                     style={{
-                      color: "var(--ink-2)",
-                      fontSize: "9.5px",
+                      color: "var(--t3)",
+                      fontSize: "11px",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
@@ -407,26 +373,25 @@ export default async function CanaryPage({
                   >
                     {r.fromAddr ?? "—"}
                   </span>
-                  <span style={{ color: "var(--ink-2)", fontSize: "9px" }}>
-                    ▶
+                  <span style={{ color: "var(--t3)" }}>
+                    <ChevronRight />
                   </span>
                 </div>
               ))}
             </>
           )}
-        </Panel>
+        </Card>
 
         <div>
           {/* Daily register */}
-          <Panel>
-            <PanelHeader label="Daily register" right="7 days" />
+          <Card>
+            <CardHeader title="Daily register" right="7 days" />
             {dailyEntries.length === 0 ? (
               <div
                 style={{
                   padding: "12px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
-                  color: "var(--ink-2)",
+                  fontSize: "13px",
+                  color: "var(--t2)",
                 }}
               >
                 No data yet.
@@ -442,21 +407,21 @@ export default async function CanaryPage({
                       display: "grid",
                       gridTemplateColumns: "78px 1fr auto",
                       gap: "12px",
-                      padding: "8px 16px",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "10.5px",
-                      borderBottom: "1px solid var(--hair-2)",
+                      padding: "9px 16px",
+                      borderBottom: "1px solid var(--border)",
+                      fontSize: "13px",
                       alignItems: "baseline",
+                      fontFamily: "var(--mono)",
                     }}
                   >
-                    <span style={{ color: "var(--ink-2)" }}>{day}</span>
+                    <span style={{ color: "var(--t3)" }}>{day}</span>
                     <span>{total} received</span>
                     <span
                       style={{
                         color:
                           matched === total
-                            ? "var(--green)"
-                            : "var(--amber-deep)",
+                            ? "var(--green-tx)"
+                            : "var(--amber-tx)",
                         fontWeight: 600,
                       }}
                     >
@@ -466,18 +431,17 @@ export default async function CanaryPage({
                 );
               })
             )}
-          </Panel>
+          </Card>
 
           {/* Incidents */}
-          <Panel style={{ marginTop: "14px" }}>
-            <PanelHeader label="Incidents" count={incidents.length} />
+          <Card style={{ marginTop: "14px" }}>
+            <CardHeader title="Incidents" count={incidents.length} />
             {incidents.length === 0 ? (
               <div
                 style={{
                   padding: "12px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
-                  color: "var(--ink-2)",
+                  fontSize: "13px",
+                  color: "var(--t2)",
                 }}
               >
                 No incidents.
@@ -497,18 +461,18 @@ export default async function CanaryPage({
                       padding: "9px 16px",
                       borderBottom:
                         i < incidents.length - 1
-                          ? "1px solid var(--hair-2)"
+                          ? "1px solid var(--border)"
                           : "none",
-                      fontSize: "12.5px",
+                      fontSize: "13px",
                       alignItems: "baseline",
                       cursor: "pointer",
                     }}
                   >
                     <span
                       style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "10px",
-                        color: "var(--ink-2)",
+                        fontFamily: "var(--mono)",
+                        fontSize: "12px",
+                        color: "var(--t3)",
                       }}
                     >
                       {formatDate(inc.openedAt, tz)}
@@ -520,9 +484,9 @@ export default async function CanaryPage({
                       {inc.sendsDue !== null && inc.sendsDue > 0 && (
                         <span
                           style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "9.5px",
-                            color: "var(--ink-2)",
+                            fontFamily: "var(--mono)",
+                            fontSize: "11px",
+                            color: "var(--t3)",
                             marginLeft: "6px",
                           }}
                         >
@@ -530,20 +494,15 @@ export default async function CanaryPage({
                         </span>
                       )}
                     </span>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "9.5px",
-                        color: "var(--ink-2)",
-                      }}
-                    >
-                      {inc.status === "open" ? "open" : "resolved"}
-                    </span>
+                    <Badge
+                      kind={inc.status === "open" ? "open" : "resolved"}
+                      label={inc.status === "open" ? "Open" : "Resolved"}
+                    />
                   </div>
                 </Link>
               ))
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>

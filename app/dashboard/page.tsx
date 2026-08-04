@@ -4,15 +4,20 @@ import Link from "next/link";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
 import { deriveStatus } from "@/lib/status";
-import { Chip } from "@/components/ui/Chip";
-import { Panel, PanelHeader } from "@/components/ui/Panel";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, ChevronRight } from "@/components/ui/Card";
 import { formatRelativeTime } from "@/lib/format-relative-time";
 
 /**
  * Home — "Clients" view.
- * Matches euclio-home-view.html:
- *   - Figures row
- *   - Two-column grid: "The book" panel (left) + "Needs attention" + "Latest entries" (right)
+ * Matches euclio-home-view.html (v6 design system).
+ *
+ * Layout:
+ *   Header: "Clients" title + subtitle + search/filter/Add client
+ *   Stat cards grid (4 cards)
+ *   Two-column grid:
+ *     Left: "The book" card (client table with badges)
+ *     Right: "Needs attention" card (amber, when open incidents exist) + "Latest entries" card
  */
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -22,7 +27,6 @@ export default async function DashboardPage() {
   const tz = account.timezone ?? "UTC";
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  // Full client + workflow + incident data
   const clients = await prisma.client.findMany({
     where: { accountId: account.id, archivedAt: null },
     orderBy: { name: "asc" },
@@ -35,10 +39,8 @@ export default async function DashboardPage() {
         select: {
           id: true,
           name: true,
-          status: true,
           createdAt: true,
           lastPingAt: true,
-          expectedIntervalMinutes: true,
           incidents: {
             orderBy: { openedAt: "desc" },
             take: 1,
@@ -55,7 +57,6 @@ export default async function DashboardPage() {
     },
   });
 
-  // Aggregate figures
   const totalWorkflows = clients.reduce((s, c) => s + c.workflows.length, 0);
 
   const incidentCount30d = await prisma.incident.count({
@@ -85,16 +86,6 @@ export default async function DashboardPage() {
     receiptCounts.map((r) => [r.workflowId, r._count.id]),
   );
 
-  function clientReceiptCount(clientId: string): number {
-    const c = clients.find((x) => x.id === clientId);
-    if (!c) return 0;
-    return c.workflows.reduce(
-      (s, w) => s + (receiptByWorkflow.get(w.id) ?? 0),
-      0,
-    );
-  }
-
-  // Derive status for each client (worst workflow wins)
   type ClientRow = {
     id: string;
     name: string;
@@ -104,13 +95,14 @@ export default async function DashboardPage() {
     workflows: number;
     receipts30d: number;
     openIncidentId?: string;
-    openedAt?: Date;
   };
 
   const clientRows: ClientRow[] = clients.map((client) => {
-    const receipts30d = clientReceiptCount(client.id);
+    const receipts30d = client.workflows.reduce(
+      (s, w) => s + (receiptByWorkflow.get(w.id) ?? 0),
+      0,
+    );
 
-    // Find worst workflow
     const openWf = client.workflows.find(
       (w) => w.incidents[0]?.status === "open",
     );
@@ -122,7 +114,6 @@ export default async function DashboardPage() {
     let statusChip = "";
     let statusSub = "";
     let openIncidentId: string | undefined;
-    let openedAt: Date | undefined;
 
     if (openWf) {
       const inc = openWf.incidents[0];
@@ -136,7 +127,6 @@ export default async function DashboardPage() {
       statusChip = s.chip;
       statusSub = `${openWf.name} · ${inc.source === "explicit_fail" ? "reported a failure" : "missed check-in"} ${formatRelativeTime(inc.openedAt)}`;
       openIncidentId = inc.id;
-      openedAt = inc.openedAt;
     } else if (resolvedWf) {
       const inc = resolvedWf.incidents[0];
       const s = deriveStatus({
@@ -145,11 +135,15 @@ export default async function DashboardPage() {
         createdAt: resolvedWf.createdAt,
         timezone: tz,
       });
+      const pause = inc.resolvedAt
+        ? Math.round(
+            (inc.resolvedAt.getTime() - inc.openedAt.getTime()) / 60_000,
+          )
+        : 0;
       statusKind = "resolved";
       statusChip = s.chip;
-      statusSub = `${resolvedWf.name} · resolved`;
+      statusSub = `${pause}-min pause this morning · resolved`;
     } else {
-      // All quiet — use the workflow with the most recent ping
       const anyWf = client.workflows[0];
       if (anyWf) {
         const s = deriveStatus({
@@ -163,7 +157,7 @@ export default async function DashboardPage() {
           ? `Last check-in ${formatRelativeTime(anyWf.lastPingAt)}`
           : "No check-ins yet";
       } else {
-        statusChip = "QUIET";
+        statusChip = "Quiet · today";
         statusSub = "No workflows";
       }
     }
@@ -177,7 +171,6 @@ export default async function DashboardPage() {
       workflows: client.workflows.length,
       receipts30d,
       openIncidentId,
-      openedAt,
     };
   });
 
@@ -189,10 +182,9 @@ export default async function DashboardPage() {
     return a.name.localeCompare(b.name);
   });
 
-  // Open incidents for "Needs attention" panel
   const openRows = clientRows.filter((r) => r.statusKind === "open");
 
-  // Latest entries feed (recent incidents across all clients)
+  // Latest entries feed
   const latestIncidents = await prisma.incident.findMany({
     where: { workflow: { client: { accountId: account.id } } },
     orderBy: { openedAt: "desc" },
@@ -202,7 +194,6 @@ export default async function DashboardPage() {
       source: true,
       status: true,
       openedAt: true,
-      resolvedAt: true,
       sendsDue: true,
       sendsArrived: true,
       workflow: {
@@ -216,17 +207,16 @@ export default async function DashboardPage() {
 
   function formatEntryTime(date: Date): string {
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    const diffDays = Math.floor(
+      (now.getTime() - date.getTime()) / (24 * 60 * 60 * 1000),
+    );
     if (diffDays === 0) {
       return new Intl.DateTimeFormat("en-US", {
         timeZone: tz,
         hour: "numeric",
         minute: "2-digit",
         hour12: true,
-      })
-        .format(date)
-        .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+      }).format(date);
     }
     return new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
@@ -235,19 +225,30 @@ export default async function DashboardPage() {
     }).format(date);
   }
 
+  const nowFormatted = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date());
+
   return (
-    <div style={{ padding: "26px 40px 0", minWidth: 0 }}>
+    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-        <span
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "24px",
-            fontWeight: 500,
-          }}
-        >
-          Clients
-        </span>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+        <div>
+          <div
+            style={{ fontSize: "20px", fontWeight: 600, letterSpacing: "-.01em" }}
+          >
+            Clients
+          </div>
+          <div style={{ fontSize: "13px", color: "var(--t2)", marginTop: "3px" }}>
+            Your book across {clients.length} client{clients.length !== 1 ? "s" : ""} · {nowFormatted}
+          </div>
+        </div>
         <div
           style={{
             marginLeft: "auto",
@@ -256,55 +257,139 @@ export default async function DashboardPage() {
             gap: "10px",
           }}
         >
+          {/* Search (static UI) */}
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "13px",
+              color: "var(--t3)",
+              border: "1px solid var(--border-2)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              background: "#fff",
+              boxShadow: "var(--sh)",
+              width: "220px",
+            }}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            Search clients…
+          </span>
+          {/* Status filter */}
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "var(--t2)",
+              border: "1px solid var(--border-2)",
+              borderRadius: "8px",
+              padding: "8px 12px",
+              background: "#fff",
+              boxShadow: "var(--sh)",
+            }}
+          >
+            Status: All
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </span>
+          {/* Add client */}
           <Link
             href="/dashboard/clients/new"
             style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "10px",
-              letterSpacing: ".08em",
-              textTransform: "uppercase",
-              borderRadius: "999px",
-              padding: "8px 16px",
-              border: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "13px",
+              fontWeight: 600,
+              borderRadius: "8px",
+              padding: "9px 14px",
+              border: "1px solid var(--pine)",
               background: "var(--pine)",
-              color: "var(--rail-text)",
+              color: "#fff",
+              boxShadow: "var(--sh)",
               textDecoration: "none",
             }}
           >
-            + Add client
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add client
           </Link>
         </div>
       </div>
 
-      {/* ── Figures ── */}
-      <div style={{ display: "flex", gap: "34px", margin: "18px 0 16px" }}>
+      {/* ── Stat cards ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "14px",
+          margin: "20px 0 16px",
+        }}
+      >
         {[
-          { v: clients.length, k: "clients" },
-          { v: totalWorkflows, k: "workflows" },
-          { v: receiptCount30d.toLocaleString(), k: "receipts · 30d" },
-          { v: incidentCount30d, k: "incidents · 30d" },
-        ].map(({ v, k }) => (
-          <div key={k}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "15px",
-                fontWeight: 600,
-              }}
-            >
-              {v}
+          { k: "Clients", v: clients.length },
+          { k: "Workflows watched", v: totalWorkflows },
+          { k: "Receipts · 30d", v: receiptCount30d.toLocaleString() },
+          { k: "Incidents · 30d", v: incidentCount30d },
+        ].map(({ k, v }) => (
+          <div
+            key={k}
+            style={{
+              background: "#fff",
+              border: "1px solid var(--border)",
+              borderRadius: "10px",
+              padding: "14px 16px",
+              boxShadow: "var(--sh)",
+            }}
+          >
+            <div style={{ fontSize: "13px", fontWeight: 500, color: "var(--t2)" }}>
+              {k}
             </div>
             <div
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "8.5px",
-                letterSpacing: ".1em",
-                textTransform: "uppercase",
-                color: "var(--ink-2)",
-                marginTop: "3px",
+                fontSize: "24px",
+                fontWeight: 600,
+                letterSpacing: "-.01em",
+                marginTop: "6px",
               }}
             >
-              {k}
+              {v}
             </div>
           </div>
         ))}
@@ -316,198 +401,196 @@ export default async function DashboardPage() {
           display: "grid",
           gridTemplateColumns: "1.62fr 1fr",
           gap: "14px",
-          paddingBottom: "40px",
         }}
       >
         {/* ── Left: The book ── */}
-        <div>
-          <Panel>
-            <PanelHeader
-              label="The book"
-              count={`${clients.length} clients`}
-              right="sorted: status ▾"
-            />
-
-            {/* Table header */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 168px 74px 92px 16px",
-                gap: "14px",
-                alignItems: "center",
-                padding: "10px 16px 7px",
-                borderBottom: "1px solid var(--hair)",
-              }}
-            >
-              {["Client", "Status", "Workflows", "Receipts · 30d", ""].map(
-                (h, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "8px",
-                      letterSpacing: ".12em",
-                      textTransform: "uppercase",
-                      color: "var(--ink-2)",
-                      textAlign: i >= 2 && i < 4 ? "right" : "left",
-                    }}
-                  >
-                    {h}
-                  </span>
-                ),
-              )}
-            </div>
-
-            {/* Rows */}
-            {clients.length === 0 ? (
-              <div
-                style={{
-                  padding: "20px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "11px",
-                  color: "var(--ink-2)",
-                }}
-              >
-                No clients yet.{" "}
-                <Link
-                  href="/dashboard/clients/new"
-                  style={{ color: "var(--pine)" }}
+        <Card>
+          <CardHeader
+            title="The book"
+            count={clients.length}
+            right={
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                Sort: Status
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  Add one →
-                </Link>
-              </div>
-            ) : (
-              clientRows.map((row, i) => (
-                <Link
-                  key={row.id}
-                  href={`/dashboard/clients/${row.id}`}
-                  style={{ textDecoration: "none", color: "inherit" }}
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+            }
+          />
+
+          {/* Table header */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 170px 84px 110px 28px",
+              gap: "14px",
+              alignItems: "center",
+              padding: "9px 16px",
+              background: "var(--subtle)",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            {["Client", "Status", "Workflows", "Receipts · 30d", ""].map(
+              (h, i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    color: "var(--t3)",
+                    textAlign: i >= 2 && i < 4 ? "right" : "left",
+                  }}
                 >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 168px 74px 92px 16px",
-                      gap: "14px",
-                      alignItems: "center",
-                      padding: "13px 16px",
-                      borderBottom:
-                        i < clientRows.length - 1
-                          ? "1px solid var(--hair-2)"
-                          : "none",
-                      cursor: "pointer",
-                      background:
-                        row.statusKind === "open"
-                          ? "rgba(176,133,46,.08)"
-                          : "transparent",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontFamily: "var(--font-serif)",
-                          fontSize: "15px",
-                          fontWeight: 500,
-                        }}
-                      >
-                        {row.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--ink-2)",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {row.statusSub}
-                      </div>
-                    </div>
-                    <span>
-                      <Chip kind={row.statusKind} label={row.statusChip} />
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "11px",
-                        textAlign: "right",
-                      }}
-                    >
-                      {row.workflows}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "11px",
-                        textAlign: "right",
-                      }}
-                    >
-                      {row.receipts30d}
-                    </span>
-                    <span
-                      style={{
-                        color: "var(--ink-2)",
-                        fontSize: "10px",
-                        textAlign: "right",
-                      }}
-                    >
-                      ▶
-                    </span>
-                  </div>
-                </Link>
-              ))
+                  {h}
+                </span>
+              ),
             )}
+          </div>
 
+          {/* Rows */}
+          {clients.length === 0 ? (
             <div
               style={{
-                padding: "10px 16px",
-                fontFamily: "var(--font-mono)",
-                fontSize: "8.5px",
-                color: "var(--ink-2)",
-                borderTop: "1px solid var(--hair-2)",
+                padding: "20px 16px",
+                fontSize: "13px",
+                color: "var(--t2)",
               }}
             >
-              Entries are appended, never edited.
+              No clients yet.{" "}
+              <Link
+                href="/dashboard/clients/new"
+                style={{ color: "var(--pine)", fontWeight: 500 }}
+              >
+                Add one →
+              </Link>
             </div>
-          </Panel>
-        </div>
+          ) : (
+            clientRows.map((row, i) => (
+              <Link
+                key={row.id}
+                href={`/dashboard/clients/${row.id}`}
+                style={{ textDecoration: "none", color: "inherit" }}
+              >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 170px 84px 110px 28px",
+                    gap: "14px",
+                    alignItems: "center",
+                    padding: "13px 16px",
+                    borderBottom:
+                      i < clientRows.length - 1
+                        ? "1px solid var(--border)"
+                        : "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: 500 }}>
+                      {row.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "var(--t2)",
+                        marginTop: "2px",
+                      }}
+                    >
+                      {row.statusSub}
+                    </div>
+                  </div>
+                  <span>
+                    <Badge kind={row.statusKind} label={row.statusChip} />
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      textAlign: "right",
+                    }}
+                  >
+                    {row.workflows}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      textAlign: "right",
+                    }}
+                  >
+                    {row.receipts30d}
+                  </span>
+                  <span
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      color: "var(--t3)",
+                    }}
+                  >
+                    <ChevronRight />
+                  </span>
+                </div>
+              </Link>
+            ))
+          )}
+
+          <div
+            style={{
+              padding: "11px 16px",
+              fontSize: "12px",
+              color: "var(--t3)",
+              borderTop: "1px solid var(--border)",
+              background: "var(--subtle)",
+            }}
+          >
+            Entries are appended, never edited.
+          </div>
+        </Card>
 
         {/* ── Right: Needs attention + Latest entries ── */}
         <div>
           {openRows.length > 0 ? (
-            <Panel loud style={{ marginBottom: "14px" }}>
-              <PanelHeader
-                label="Needs attention"
+            <Card attention style={{ marginBottom: "14px" }}>
+              <CardHeader
+                title="Needs attention"
                 count={openRows.length}
-                right={new Intl.DateTimeFormat("en-US", {
-                  timeZone: tz,
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  hour12: true,
-                })
-                  .format(new Date())
-                  .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase())}
+                right={formatEntryTime(new Date())}
+                attention
+                icon={
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ color: "var(--amber-tx)", flexShrink: 0 }}
+                  >
+                    <path d="M12 9v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z" />
+                  </svg>
+                }
               />
               {openRows.slice(0, 3).map((row) => (
-                <div
-                  key={row.id}
-                  style={{ padding: "14px 16px 15px", cursor: "pointer" }}
-                >
-                  <div
-                    style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: "17px",
-                      fontWeight: 500,
-                    }}
-                  >
+                <div key={row.id} style={{ padding: "16px" }}>
+                  <div style={{ fontSize: "16px", fontWeight: 600 }}>
                     {row.name}
                   </div>
                   <div
                     style={{
-                      color: "var(--amber-deep)",
+                      fontSize: "13.5px",
+                      color: "var(--amber-tx)",
                       fontWeight: 500,
-                      fontSize: "12.5px",
                       marginTop: "4px",
                     }}
                   >
@@ -517,53 +600,53 @@ export default async function DashboardPage() {
                     <Link
                       href={`/dashboard/incidents/${row.openIncidentId}`}
                       style={{
-                        display: "inline-block",
-                        marginTop: "12px",
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "9.5px",
-                        letterSpacing: ".08em",
-                        textTransform: "uppercase",
-                        color: "var(--rail-text)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        marginTop: "14px",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "#fff",
                         background: "var(--pine)",
-                        borderRadius: "999px",
-                        padding: "7px 14px",
+                        borderRadius: "8px",
+                        padding: "8px 13px",
+                        boxShadow: "var(--sh)",
                         textDecoration: "none",
                       }}
                     >
-                      Open incident ▶
+                      Open incident
+                      <ChevronRight />
                     </Link>
                   )}
                 </div>
               ))}
-            </Panel>
+            </Card>
           ) : (
-            <Panel style={{ marginBottom: "14px" }}>
-              <PanelHeader label="All clear" />
+            <Card style={{ marginBottom: "14px" }}>
+              <CardHeader title="All clear" />
               <div
                 style={{
-                  padding: "14px 16px 15px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "11px",
-                  color: "var(--ink-2)",
+                  padding: "14px 16px",
+                  fontSize: "13px",
+                  color: "var(--t2)",
                 }}
               >
                 {clients.length === 0
                   ? "No clients yet."
                   : "No open incidents."}
               </div>
-            </Panel>
+            </Card>
           )}
 
           {/* Latest entries */}
-          <Panel>
-            <PanelHeader label="Latest entries" />
+          <Card>
+            <CardHeader title="Latest entries" />
             {latestIncidents.length === 0 ? (
               <div
                 style={{
                   padding: "12px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "11px",
-                  color: "var(--ink-2)",
+                  fontSize: "13px",
+                  color: "var(--t2)",
                 }}
               >
                 No entries yet.
@@ -578,53 +661,49 @@ export default async function DashboardPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "64px 1fr",
+                      gridTemplateColumns: "66px 1fr",
                       gap: "12px",
-                      padding: "10px 16px",
+                      padding: "11px 16px",
                       borderBottom:
                         i < latestIncidents.length - 1
-                          ? "1px solid var(--hair-2)"
+                          ? "1px solid var(--border)"
                           : "none",
-                      fontSize: "12px",
+                      fontSize: "13px",
                       alignItems: "baseline",
                       cursor: "pointer",
                     }}
                   >
-                    <span
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: "9.5px",
-                        color: "var(--ink-2)",
-                      }}
-                    >
+                    <span style={{ fontSize: "12px", color: "var(--t3)" }}>
                       {formatEntryTime(inc.openedAt)}
                     </span>
                     <span>
                       <strong
                         style={{
-                          fontWeight: 500,
+                          fontWeight: 600,
                           color:
                             inc.status === "open"
-                              ? "var(--amber-deep)"
-                              : "var(--ink)",
+                              ? "var(--amber-tx)"
+                              : "var(--t1)",
                         }}
                       >
                         {inc.workflow.client.name}
                       </strong>{" "}
-                      ·{" "}
-                      {inc.status === "open"
-                        ? inc.source === "explicit_fail"
-                          ? "reported a failure · open"
-                          : "missed check-in · open"
-                        : inc.sendsDue !== null && inc.sendsDue > 0
-                          ? `resolved · ${inc.sendsArrived ?? 0} of ${inc.sendsDue} received`
-                          : "resolved"}
+                      <span style={{ color: "var(--t2)" }}>
+                        ·{" "}
+                        {inc.status === "open"
+                          ? inc.source === "explicit_fail"
+                            ? "reported a failure · open"
+                            : "missed check-in · open"
+                          : inc.sendsDue !== null && inc.sendsDue > 0
+                            ? `resolved · ${inc.sendsArrived ?? 0} of ${inc.sendsDue} received`
+                            : "resolved"}
+                      </span>
                     </span>
                   </div>
                 </Link>
               ))
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>

@@ -2,34 +2,31 @@
  * lib/status.ts — single source of truth for workflow status chips.
  *
  * Rules:
- *   - open incident → OPEN · <age>
- *   - resolved incident today → RESOLVED · <time>
- *   - else → QUIET · <days> from last incident (or workflow creation)
+ *   - open incident → "Open · <age>"
+ *   - resolved incident → "Resolved · <time>"
+ *   - else → "Quiet · <days> days" from last incident (or workflow creation)
  *
  * Pure function, no DB. All chip strings are worded — never bare dots or glyphs.
- * Banned: severity words, reassurance words, uptime percentages.
+ * Sentence case. Banned: severity words, reassurance words, uptime percentages.
+ *
+ * The Badge component renders the dot separately; this function returns only
+ * the text label.
  */
 
 export type StatusKind = "open" | "resolved" | "quiet";
 
 export interface WorkflowStatus {
   kind: StatusKind;
-  /** Worded chip string, e.g. "OPEN · 28 MIN" or "QUIET · 41 DAYS" */
+  /** Worded chip label, e.g. "Open · 28 min" or "Quiet · 41 days" */
   chip: string;
 }
 
 interface StatusInput {
-  /** Whether there is currently an open incident */
   hasOpenIncident: boolean;
-  /** When the open incident was opened (if any) */
   openedAt?: Date | null;
-  /** When the most recent incident was resolved (if any) */
   lastResolvedAt?: Date | null;
-  /** When the workflow was created (fallback for quiet run start) */
   createdAt: Date;
-  /** Reference time (defaults to now) */
   now?: Date;
-  /** Timezone for time formatting (IANA, e.g. "America/New_York") */
   timezone?: string;
 }
 
@@ -39,9 +36,7 @@ function formatTime(date: Date, timezone: string): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  })
-    .format(date)
-    .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+  }).format(date);
 }
 
 function minutesSince(from: Date, now: Date): number {
@@ -53,10 +48,10 @@ function daysSince(from: Date, now: Date): number {
 }
 
 function formatAge(minutes: number): string {
-  if (minutes < 60) return `${minutes} MIN`;
+  if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m === 0 ? `${h}H` : `${h}H ${m}M`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
 export function deriveStatus(input: StatusInput): WorkflowStatus {
@@ -67,7 +62,7 @@ export function deriveStatus(input: StatusInput): WorkflowStatus {
     const age = minutesSince(input.openedAt, now);
     return {
       kind: "open",
-      chip: `OPEN · ${formatAge(age)}`,
+      chip: `Open · ${formatAge(age)}`,
     };
   }
 
@@ -75,15 +70,14 @@ export function deriveStatus(input: StatusInput): WorkflowStatus {
     const time = formatTime(input.lastResolvedAt, tz);
     return {
       kind: "resolved",
-      chip: `RESOLVED · ${time}`,
+      chip: `Resolved · ${time}`,
     };
   }
 
-  // Quiet — days since last incident or workflow creation
   const quietFrom = input.lastResolvedAt ?? input.createdAt;
   const days = daysSince(quietFrom, now);
   return {
     kind: "quiet",
-    chip: days === 0 ? "QUIET · TODAY" : `QUIET · ${days} DAYS`,
+    chip: days === 0 ? "Quiet · today" : `Quiet · ${days} days`,
   };
 }

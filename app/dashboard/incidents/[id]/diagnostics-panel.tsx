@@ -7,6 +7,8 @@ import { useState } from "react";
  *
  * Collapsed by default. Nothing composable (facts, compose, ClientUpdate)
  * imports this component — structural firewall maintained.
+ *
+ * Uses v6 design tokens.
  */
 interface DiagnosticsPanelProps {
   errorText: string | null;
@@ -27,26 +29,51 @@ export function DiagnosticsPanel({
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
-          gap: "10px",
-          padding: "10px 16px",
-          borderBottom: open ? "1px solid var(--hair)" : "none",
-          fontFamily: "var(--font-mono)",
-          fontSize: "8.5px",
-          letterSpacing: ".12em",
-          textTransform: "uppercase",
-          color: "var(--ink-2)",
+          alignItems: "center",
+          gap: "8px",
+          padding: "13px 16px",
+          borderBottom: open ? "1px solid var(--border)" : "none",
           cursor: "pointer",
         }}
         onClick={() => setOpen((v) => !v)}
       >
-        <span style={{ fontSize: "9px" }}>{open ? "▾" : "▸"}</span>
-        <span>Diagnostics · {count}</span>
+        {/* Collapse chevron */}
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ color: "var(--t3)", flexShrink: 0 }}
+        >
+          {open ? (
+            <path d="m6 9 6 6 6-6" />
+          ) : (
+            <path d="m9 18 6-6-6-6" />
+          )}
+        </svg>
+        <span style={{ fontSize: "15px", fontWeight: 600 }}>Diagnostics</span>
+        <span
+          style={{
+            fontSize: "12px",
+            fontWeight: 500,
+            color: "var(--t2)",
+            background: "var(--subtle)",
+            border: "1px solid var(--border)",
+            borderRadius: "999px",
+            padding: "1px 8px",
+          }}
+        >
+          {count}
+        </span>
         <span
           style={{
             marginLeft: "auto",
-            letterSpacing: ".04em",
-            textTransform: "none",
+            fontSize: "13px",
+            color: "var(--t2)",
           }}
         >
           redacted · ttl 30d
@@ -57,24 +84,26 @@ export function DiagnosticsPanel({
       {open && (
         <div
           style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "12px",
-            padding: "11px 16px",
-            fontFamily: "var(--font-mono)",
-            fontSize: "10px",
-            color: "var(--ink-2)",
+            padding: "12px 16px",
+            fontSize: "13px",
+            color: "var(--t2)",
           }}
         >
           {errorText ? (
             <>
               <code
                 style={{
-                  fontSize: "10px",
-                  color: "var(--pine)",
+                  fontFamily: "var(--mono)",
+                  fontSize: "12px",
+                  color: "var(--t1)",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
                   lineHeight: "1.6",
+                  display: "block",
+                  background: "var(--subtle)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "10px 12px",
                 }}
               >
                 {errorText}
@@ -82,17 +111,18 @@ export function DiagnosticsPanel({
               {errorRedactedByServer && (
                 <span
                   style={{
-                    fontSize: "9px",
-                    color: "var(--ink-2)",
-                    marginLeft: "8px",
+                    display: "block",
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "var(--t3)",
                   }}
                 >
-                  · server-side redaction applied
+                  Server-side redaction applied.
                 </span>
               )}
             </>
           ) : (
-            <span>No diagnostic data.</span>
+            <span style={{ color: "var(--t3)" }}>No diagnostic data.</span>
           )}
         </div>
       )}

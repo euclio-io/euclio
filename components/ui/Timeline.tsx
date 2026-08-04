@@ -9,30 +9,31 @@ interface TimelineProps {
   events: TimelineEvent[];
 }
 
-const kindColor: Record<TimelineEvent["kind"], string> = {
+const nodeColor: Record<TimelineEvent["kind"], string> = {
   amber: "var(--amber)",
   green: "var(--green)",
-  neutral: "var(--ink-2)",
+  neutral: "var(--gray)",
 };
 
-const kindTextColor: Record<TimelineEvent["kind"], string> = {
-  amber: "var(--amber-deep)",
-  green: "var(--green)",
-  neutral: "var(--ink-2)",
+const labelColor: Record<TimelineEvent["kind"], string> = {
+  amber: "var(--amber-tx)",
+  green: "var(--green-tx)",
+  neutral: "var(--t2)",
 };
 
 export function Timeline({ events }: TimelineProps) {
   return (
-    <div style={{ padding: "6px 16px 12px 20px" }}>
+    <div style={{ padding: "8px 16px 12px 22px" }}>
       {events.map((ev, i) => (
         <div
           key={i}
           style={{
             position: "relative",
-            padding: "9px 0 9px 24px",
-            borderLeft: i < events.length - 1
-              ? "2px solid var(--hair-2)"
-              : "2px solid transparent",
+            padding: "9px 0 9px 22px",
+            borderLeft:
+              i < events.length - 1
+                ? "2px solid var(--border)"
+                : "2px solid transparent",
           }}
         >
           {/* Node */}
@@ -44,8 +45,8 @@ export function Timeline({ events }: TimelineProps) {
               width: "8px",
               height: "8px",
               borderRadius: "50%",
-              background: kindColor[ev.kind],
-              border: "2px solid var(--lift)",
+              background: nodeColor[ev.kind],
+              border: "2px solid #fff",
               display: "block",
             }}
           />
@@ -60,12 +61,9 @@ export function Timeline({ events }: TimelineProps) {
           >
             <span
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "8.5px",
-                letterSpacing: ".08em",
-                textTransform: "uppercase",
+                fontSize: "12px",
                 fontWeight: 600,
-                color: kindTextColor[ev.kind],
+                color: labelColor[ev.kind],
               }}
             >
               {ev.kindLabel}
@@ -73,9 +71,8 @@ export function Timeline({ events }: TimelineProps) {
             <span
               style={{
                 marginLeft: "auto",
-                fontFamily: "var(--font-mono)",
-                fontSize: "9.5px",
-                color: "var(--ink-2)",
+                fontSize: "12px",
+                color: "var(--t3)",
               }}
             >
               {ev.timestamp}
@@ -85,9 +82,10 @@ export function Timeline({ events }: TimelineProps) {
           {/* Detail text */}
           <div
             style={{
-              fontSize: "12.5px",
-              lineHeight: "1.5",
+              fontSize: "13.5px",
+              lineHeight: "1.55",
               marginTop: "2px",
+              color: "var(--t1)",
             }}
           >
             {ev.text}

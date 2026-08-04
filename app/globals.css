@@ -1,43 +1,64 @@
 @import "tailwindcss";
 
-/* ── Euclio design tokens ─────────────────────────────────────────────────── */
+/* ── Euclio design tokens — v6 "professional portal" ─────────────────────── */
 :root {
-  /* surfaces */
-  --paper: #F4F1EA;
-  --lift:  #FBFAF7;
+  /* Page background (behind the app frame) */
+  --page-bg: #F2F4F7;
 
-  /* rail (dark sidebar) */
-  --rail:       #1E362B;
-  --rail-2:     #24402F;
-  --rail-text:  #F6F2E9;
-  --rail-muted: rgba(246, 242, 233, 0.45);
+  /* Canvas & cards */
+  --canvas: #FFFFFF;
+  --subtle: #F9FAFB;
 
-  /* ink */
-  --ink:        #243329;
-  --ink-2:      #66756B;
+  /* Borders */
+  --border:   #EAECF0;
+  --border-2: #D0D5DD;
 
-  /* accent */
-  --pine:       #1E362B;
-  --green:      #2F6B4A;
-  --amber:      #B0852E;
-  --amber-deep: #8A6423;
+  /* Text */
+  --t1: #101828;
+  --t2: #475467;
+  --t3: #667085;
 
-  /* separators */
-  --hair:   rgba(36, 51, 41, 0.12);
-  --hair-2: rgba(36, 51, 41, 0.055);
+  /* Brand pine (rail, primary buttons, active tab, links) */
+  --pine:      #1E362B;
+  --pine-2:    #24402F;
+  --rail-text: #F5F6F4;
+  --rail-muted: rgba(245, 246, 244, 0.55);
 
-  /* typography */
-  --font-serif: var(--font-spectral), 'Spectral', serif;
-  --font-sans:  var(--font-instrument-sans), 'Instrument Sans', sans-serif;
-  --font-mono:  var(--font-ibm-plex-mono), 'IBM Plex Mono', monospace;
+  /* Status — amber/attention */
+  --amber-bg: #FFFAEB;
+  --amber-tx: #B54708;
+  --amber-bd: #FEDF89;
+  --amber:    #F79009;
+
+  /* Status — green/verified */
+  --green-bg: #ECFDF3;
+  --green-tx: #067647;
+  --green-bd: #ABEFC6;
+  --green:    #17B26A;
+
+  /* Status — gray/quiet */
+  --gray-bg: #F9FAFB;
+  --gray-tx: #475467;
+  --gray-bd: #EAECF0;
+  --gray:    #98A2B3;
+
+  /* Shadows */
+  --sh:       0 1px 2px rgba(16, 24, 40, .05);
+  --sh-frame: 0 24px 48px -12px rgba(16, 24, 40, .18);
+
+  /* Monospace — system stack, reserved for code-like values only */
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+
+  /* Font (Inter via next/font) */
+  --font-sans: var(--font-inter), 'Inter', sans-serif;
 }
 
 /* ── Tailwind theme bridge ────────────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--paper);
-  --color-foreground: var(--ink);
+  --color-background: var(--canvas);
+  --color-foreground: var(--t1);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --font-mono: var(--mono);
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────────── */
@@ -49,8 +70,8 @@
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--page-bg);
+  color: var(--t1);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;

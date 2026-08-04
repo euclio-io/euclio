@@ -5,8 +5,8 @@ import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 import { prisma } from "@/lib/prisma";
 import { factsForIncident } from "@/lib/facts";
 import { deriveStatus } from "@/lib/status";
-import { Chip } from "@/components/ui/Chip";
-import { Panel, PanelHeader } from "@/components/ui/Panel";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader } from "@/components/ui/Card";
 import { ImpactStrip } from "@/components/ui/ImpactStrip";
 import { Timeline } from "@/components/ui/Timeline";
 import { SimulateFailureForm } from "@/app/dashboard/simulate-failure-form";
@@ -14,20 +14,18 @@ import { ResolveForm } from "./resolve-form";
 import { DiagnosticsPanel } from "./diagnostics-panel";
 
 /**
- * Incident detail page — matches euclio-incident-view.html.
+ * Incident detail page — matches euclio-incident-view.html (v6 design system).
  *
  * Focus order (the anxious landing):
- *   1. ImpactStrip — outstanding count (green 0 / amber >0), receipts, time to catch, pause, resolution
- *   2. Summary panel — facts text + "Your read" slot + Copy + Compose
- *   3. Events timeline (collapsible)
- *   4. Receipts panel (collapsible)
- *   5. Diagnostics panel (collapsed by default — ONLY place errorText renders)
+ *   1. ImpactStrip card — outstanding count (green 0 / amber >0 crisis switch)
+ *   2. Summary card — facts text + "Your read" slot + Copy summary + Compose
+ *   3. Events timeline card (left column)
+ *   4. Receipts card (right column)
+ *   5. Diagnostics card (collapsed by default — ONLY place errorText renders)
  *
  * Ownership: incident → workflow → client → accountId (inside the query).
  * errorText is rendered ONLY in DiagnosticsPanel — nothing composable imports it.
  */
-
-// ── helpers ───────────────────────────────────────────────────────────────────
 
 function formatAbsoluteTime(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -38,9 +36,7 @@ function formatAbsoluteTime(date: Date, timezone: string): string {
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
-  })
-    .format(date)
-    .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+  }).format(date);
 }
 
 function formatTimeOnly(date: Date, timezone: string): string {
@@ -50,9 +46,7 @@ function formatTimeOnly(date: Date, timezone: string): string {
     minute: "2-digit",
     second: "2-digit",
     hour12: true,
-  })
-    .format(date)
-    .replace(/\s?(AM|PM)$/i, (m) => m.trim().toLowerCase());
+  }).format(date);
 }
 
 function formatDuration(from: Date, to: Date): string {
@@ -62,14 +56,6 @@ function formatDuration(from: Date, to: Date): string {
   const m = total % 60;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
-
-function formatSeconds(from: Date, to: Date): string {
-  const secs = Math.round((to.getTime() - from.getTime()) / 1000);
-  if (secs < 60) return `${secs} s`;
-  return formatDuration(from, to);
-}
-
-// ── page ──────────────────────────────────────────────────────────────────────
 
 export default async function IncidentDetailPage({
   params,
@@ -83,7 +69,6 @@ export default async function IncidentDetailPage({
 
   const account = await getOrCreateAccountForCurrentUser();
 
-  // Single query — ownership scoped by accountId inside the where clause.
   const incident = await prisma.incident.findFirst({
     where: {
       id,
@@ -133,7 +118,6 @@ export default async function IncidentDetailPage({
   const clientName = incident.workflow.client.name;
   const clientId = incident.workflow.client.id;
 
-  // Fact lines — pure, no errorText
   const factLines = factsForIncident(
     workflowName,
     incident.source === "explicit_fail" ? "explicit_fail" : "heartbeat",
@@ -142,7 +126,6 @@ export default async function IncidentDetailPage({
     timezone,
   );
 
-  // Status chip
   const statusResult = deriveStatus({
     hasOpenIncident: incident.status === "open",
     openedAt: incident.status === "open" ? incident.openedAt : undefined,
@@ -151,12 +134,7 @@ export default async function IncidentDetailPage({
     timezone,
   });
 
-  // Page title
-  const pageTitle =
-    incident.source === "explicit_fail" ? "Failure reported" : "Missed check-in";
-
-  // ── ImpactStrip data ──────────────────────────────────────────────────────
-
+  // ImpactStrip
   const outstanding = Math.max(
     0,
     (incident.sendsDue ?? 0) - (incident.sendsArrived ?? 0),
@@ -164,29 +142,24 @@ export default async function IncidentDetailPage({
   const heroColor = outstanding === 0 ? "green" : "amber";
 
   const impactStats = [];
-
   if (incident.sendsDue !== null && incident.sendsDue > 0) {
     impactStats.push({
       value: `${incident.sendsArrived ?? 0} / ${incident.sendsDue}`,
-      label: "receipts received",
+      label: "Receipts received",
     });
   }
-
-  // Time to catch (time from openedAt to first alert — approximate as 31s if unknown)
-  // We use alertedAt if available; otherwise omit
   if (incident.resolvedAt) {
     impactStats.push({
       value: formatDuration(incident.openedAt, incident.resolvedAt),
-      label: "pause",
+      label: "Pause",
     });
     impactStats.push({
       value: formatDuration(incident.openedAt, incident.resolvedAt),
-      label: "to resolution",
+      label: "To resolution",
     });
   }
 
-  // ── Timeline events ───────────────────────────────────────────────────────
-
+  // Timeline events
   type TLEvent = {
     kind: "amber" | "green" | "neutral";
     kindLabel: string;
@@ -197,10 +170,9 @@ export default async function IncidentDetailPage({
 
   const tlEvents: TLEvent[] = [];
 
-  // Opened
   tlEvents.push({
     kind: "amber",
-    kindLabel: incident.source === "explicit_fail" ? "fail ping" : "gap",
+    kindLabel: incident.source === "explicit_fail" ? "Fail ping" : "Gap",
     text:
       incident.source === "explicit_fail"
         ? "Failure reported"
@@ -209,48 +181,41 @@ export default async function IncidentDetailPage({
     time: incident.openedAt,
   });
 
-  // Resolved
   if (incident.resolvedAt) {
     tlEvents.push({
       kind: "green",
-      kindLabel: "recovered",
+      kindLabel: "Recovered",
       text: "Check-ins resumed",
       timestamp: formatTimeOnly(incident.resolvedAt, timezone),
       time: incident.resolvedAt,
     });
   }
 
-  // Receipts reconciled
-  if (
-    incident.sendsDue !== null &&
-    incident.sendsDue > 0 &&
-    incident.resolvedAt
-  ) {
+  if (incident.sendsDue !== null && incident.sendsDue > 0 && incident.resolvedAt) {
     tlEvents.push({
       kind: "green",
-      kindLabel: "receipts",
+      kindLabel: "Receipts",
       text: `Reconciled · ${incident.sendsArrived ?? 0} of ${incident.sendsDue} expected received`,
       timestamp: formatTimeOnly(incident.resolvedAt, timezone),
       time: incident.resolvedAt,
     });
   }
 
-  // Notes
   for (const note of incident.notes) {
     tlEvents.push({
       kind: "neutral",
-      kindLabel: "resolved",
+      kindLabel: "Resolved",
       text: (
         <span>
-          <span style={{ color: "var(--ink-2)", fontStyle: "italic" }}>
+          <span style={{ color: "var(--t2)", fontStyle: "italic" }}>
             &ldquo;{note.text}&rdquo;
           </span>
           {note.author.name && (
             <span
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "9px",
-                color: "var(--ink-2)",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "var(--t3)",
                 marginLeft: "6px",
               }}
             >
@@ -264,49 +229,30 @@ export default async function IncidentDetailPage({
     });
   }
 
-  // Sort by time
   tlEvents.sort((a, b) => a.time.getTime() - b.time.getTime());
 
-  // ── Receipts for this incident ────────────────────────────────────────────
-  // CanaryReceipt has no incidentId FK — receipts are linked to incidents via
-  // sendsDue/sendsArrived on the Incident. We show receipts that arrived during
-  // the incident window (openedAt → resolvedAt or now).
-
+  // Receipts
   const incidentEnd = incident.resolvedAt ?? new Date();
   const receipts = await prisma.canaryReceipt.findMany({
     where: {
       workflowId: incident.workflow.id,
       workflow: { client: { accountId: account.id } },
-      receivedAt: {
-        gte: incident.openedAt,
-        lte: incidentEnd,
-      },
+      receivedAt: { gte: incident.openedAt, lte: incidentEnd },
     },
     orderBy: { receivedAt: "asc" },
-    select: {
-      id: true,
-      receivedAt: true,
-      expectationId: true,
-    },
+    select: { id: true, receivedAt: true, expectationId: true },
   });
 
   return (
-    <div style={{ padding: "24px 40px 0", minWidth: 0 }}>
+    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
       {/* ── Breadcrumb ── */}
-      <div
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "9.5px",
-          letterSpacing: ".1em",
-          textTransform: "uppercase",
-          color: "var(--ink-2)",
-        }}
-      >
+      <div style={{ fontSize: "13px", color: "var(--t3)", display: "flex", gap: "6px", alignItems: "center" }}>
+        ←{" "}
         <Link
           href={`/dashboard/clients/${clientId}`}
-          style={{ color: "var(--ink-2)", textDecoration: "none" }}
+          style={{ color: "var(--t2)", fontWeight: 500, textDecoration: "none" }}
         >
-          ← {clientName} ledger
+          {clientName} ledger
         </Link>
       </div>
 
@@ -314,27 +260,24 @@ export default async function IncidentDetailPage({
       <div
         style={{
           display: "flex",
-          alignItems: "baseline",
+          alignItems: "flex-start",
           gap: "14px",
-          marginTop: "7px",
+          marginTop: "6px",
         }}
       >
         <span
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "23px",
-            fontWeight: 500,
-          }}
+          style={{ fontSize: "20px", fontWeight: 600, letterSpacing: "-.01em" }}
         >
           {workflowName}
         </span>
-        <Chip kind={statusResult.kind} label={statusResult.chip} />
+        <span style={{ position: "relative", top: "2px" }}>
+          <Badge kind={statusResult.kind} label={statusResult.chip} />
+        </span>
         <span
           style={{
             marginLeft: "auto",
-            fontFamily: "var(--font-mono)",
-            fontSize: "10px",
-            color: "var(--ink-2)",
+            fontSize: "13px",
+            color: "var(--t3)",
           }}
         >
           {formatAbsoluteTime(incident.openedAt, timezone)}
@@ -344,34 +287,34 @@ export default async function IncidentDetailPage({
         </span>
       </div>
 
-      {/* ── ImpactStrip (loud panel) ── */}
-      <Panel loud style={{ marginTop: "14px" }}>
+      {/* ── ImpactStrip card ── */}
+      <Card style={{ marginTop: "16px" }}>
         <ImpactStrip
           heroValue={String(outstanding)}
-          heroLabel="outstanding"
+          heroLabel="Outstanding"
           heroColor={heroColor}
           stats={impactStats}
         />
-      </Panel>
+      </Card>
 
-      {/* ── Summary panel ── */}
-      <Panel style={{ marginTop: "14px" }}>
-        <PanelHeader label="Summary · from the record" />
+      {/* ── Summary card ── */}
+      <Card style={{ marginTop: "14px" }}>
+        <CardHeader title="Summary" right="from the record" />
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr auto",
             gap: "28px",
             alignItems: "start",
-            padding: "14px 16px 15px",
+            padding: "15px 16px",
           }}
         >
           <div>
             <div
               style={{
-                fontSize: "13.5px",
-                lineHeight: "1.7",
-                maxWidth: "62ch",
+                fontSize: "14px",
+                lineHeight: "1.65",
+                maxWidth: "64ch",
               }}
             >
               {factLines.map((line, i) => (
@@ -381,15 +324,17 @@ export default async function IncidentDetailPage({
                 </span>
               ))}
             </div>
+            {/* "Your read" slot */}
             <div
               style={{
-                marginTop: "9px",
-                fontSize: "12px",
+                marginTop: "11px",
+                border: "1px dashed var(--amber-bd)",
+                background: "var(--amber-bg)",
+                borderRadius: "8px",
+                padding: "10px 12px",
+                fontSize: "13px",
                 fontStyle: "italic",
-                color: "var(--amber-deep)",
-                borderBottom: "1px dashed rgba(176,133,46,.55)",
-                display: "inline-block",
-                paddingBottom: "2px",
+                color: "var(--amber-tx)",
               }}
             >
               Your read — required before any client note
@@ -400,21 +345,46 @@ export default async function IncidentDetailPage({
               display: "flex",
               flexDirection: "column",
               gap: "9px",
-              alignItems: "flex-end",
+              alignItems: "stretch",
               paddingTop: "2px",
             }}
           >
+            {/* Copy summary (primary) */}
+            <button
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                fontSize: "13px",
+                fontWeight: 600,
+                borderRadius: "8px",
+                padding: "9px 14px",
+                border: "1px solid var(--pine)",
+                background: "var(--pine)",
+                color: "#fff",
+                boxShadow: "var(--sh)",
+                cursor: "pointer",
+              }}
+            >
+              Copy summary
+            </button>
+            {/* Compose client note (secondary) */}
             <Link
               href={`/dashboard/clients/${clientId}/compose/${incident.id}`}
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "10px",
-                letterSpacing: ".08em",
-                textTransform: "uppercase",
-                borderRadius: "999px",
-                padding: "9px 16px",
-                background: "var(--pine)",
-                color: "var(--rail-text)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                fontSize: "13px",
+                fontWeight: 600,
+                borderRadius: "8px",
+                padding: "9px 14px",
+                border: "1px solid var(--border-2)",
+                background: "#fff",
+                color: "var(--t2)",
+                boxShadow: "var(--sh)",
                 textDecoration: "none",
               }}
             >
@@ -425,7 +395,7 @@ export default async function IncidentDetailPage({
             )}
           </div>
         </div>
-      </Panel>
+      </Card>
 
       {/* ── Two-column grid: Events + Receipts/Diagnostics ── */}
       <div
@@ -434,33 +404,42 @@ export default async function IncidentDetailPage({
           gridTemplateColumns: "1.22fr 1fr",
           gap: "14px",
           marginTop: "14px",
-          paddingBottom: "40px",
         }}
       >
         {/* Events timeline */}
-        <Panel>
-          <PanelHeader
-            label="Events"
+        <Card>
+          <CardHeader
+            title="Events"
             count={tlEvents.length}
             collapse="open"
           />
           <Timeline events={tlEvents} />
-        </Panel>
+        </Card>
 
         <div>
-          {/* Receipts panel */}
-          <Panel style={{ marginTop: "14px" }}>
-            <PanelHeader
-              label="Receipts"
+          {/* Receipts card */}
+          <Card>
+            <CardHeader
+              title="Receipts"
               count={
                 incident.sendsDue !== null
                   ? `${incident.sendsArrived ?? 0} of ${incident.sendsDue}`
                   : undefined
               }
               right={
-                incident.sendsDue !== null && incident.sendsDue > 0
-                  ? "canary detail ▶"
-                  : undefined
+                incident.sendsDue !== null && incident.sendsDue > 0 ? (
+                  <Link
+                    href={`/dashboard/clients/${clientId}/workflows/${incident.workflow.id}/canary`}
+                    style={{
+                      color: "var(--pine)",
+                      fontWeight: 500,
+                      fontSize: "13px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    Canary detail
+                  </Link>
+                ) : undefined
               }
               collapse="open"
             />
@@ -468,9 +447,8 @@ export default async function IncidentDetailPage({
               <div
                 style={{
                   padding: "10px 16px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "10px",
-                  color: "var(--ink-2)",
+                  fontSize: "13px",
+                  color: "var(--t2)",
                 }}
               >
                 {incident.sendsDue === null
@@ -479,86 +457,93 @@ export default async function IncidentDetailPage({
               </div>
             ) : (
               <>
-                {/* Header row */}
+                {/* Table header */}
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "74px 96px 1fr",
-                    gap: "8px",
-                    padding: "8px 16px",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "8px",
-                    letterSpacing: ".1em",
-                    textTransform: "uppercase",
-                    color: "var(--ink-2)",
-                    borderBottom: "1px solid var(--hair-2)",
+                    gridTemplateColumns: "80px 100px 1fr",
+                    gap: "12px",
+                    padding: "9px 16px",
+                    background: "var(--subtle)",
+                    borderBottom: "1px solid var(--border)",
                   }}
                 >
-                  <span>expected</span>
-                  <span>received</span>
-                  <span style={{ textAlign: "right" }}>delta</span>
+                  {["Expected", "Received", "Delta"].map((h, i) => (
+                    <span
+                      key={h}
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        color: "var(--t3)",
+                        textAlign: i === 2 ? "right" : "left",
+                      }}
+                    >
+                      {h}
+                    </span>
+                  ))}
                 </div>
                 {receipts.map((r) => (
                   <div
                     key={r.id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "74px 96px 1fr",
-                      gap: "8px",
-                      padding: "8px 16px",
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "11px",
-                      borderBottom: "1px solid var(--hair-2)",
+                      gridTemplateColumns: "80px 100px 1fr",
+                      gap: "12px",
+                      padding: "9px 16px",
+                      borderBottom: "1px solid var(--border)",
+                      fontSize: "13.5px",
                       alignItems: "baseline",
+                      fontFamily: "var(--mono)",
                     }}
                   >
-                    <span style={{ color: "var(--ink-2)" }}>
-                      {r.expectationId ? "matched" : "unexpected"}
+                    <span style={{ color: "var(--t2)" }}>
+                      {r.expectationId ? "matched" : "—"}
                     </span>
                     <span>
-                      {formatTimeOnly(r.receivedAt, timezone).replace(/:\d\d\s/, " ")}
+                      {formatTimeOnly(r.receivedAt, timezone)}
                     </span>
                     <span
                       style={{
                         textAlign: "right",
-                        color: r.expectationId ? "var(--green)" : "var(--amber-deep)",
+                        color: r.expectationId
+                          ? "var(--green-tx)"
+                          : "var(--amber-tx)",
                         fontWeight: 500,
                       }}
                     >
-                      {r.expectationId ? "✓" : "unexpected"}
+                      {r.expectationId ? "matched" : "unexpected"}
                     </span>
                   </div>
                 ))}
                 <div
                   style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "10.5px",
+                    padding: "11px 16px",
+                    borderTop: "1px solid var(--border)",
+                    fontSize: "13px",
                     fontWeight: 600,
-                    padding: "10px 16px",
-                    borderTop: "1px solid var(--hair)",
+                    background: "var(--subtle)",
                   }}
                 >
-                  {incident.sendsDue ?? 0} expected · {incident.sendsArrived ?? 0} received ·{" "}
-                  {outstanding} outstanding
+                  {incident.sendsDue ?? 0} expected · {incident.sendsArrived ?? 0} received · {outstanding} outstanding
                 </div>
               </>
             )}
-          </Panel>
+          </Card>
 
-          {/* Diagnostics panel — collapsed by default, ONLY place errorText renders */}
-          <Panel style={{ marginTop: "14px" }}>
+          {/* Diagnostics card — collapsed by default, ONLY place errorText renders */}
+          <Card style={{ marginTop: "14px" }}>
             <DiagnosticsPanel
               errorText={incident.errorText}
               errorRedactedByServer={incident.errorRedactedByServer}
               count={incident.errorText ? 1 : 0}
             />
-          </Panel>
+          </Card>
         </div>
       </div>
 
-      {/* Simulate failure (if workflow is not already down) */}
+      {/* Simulate failure */}
       {incident.workflow.status !== "down" && (
-        <div style={{ paddingBottom: "40px" }}>
+        <div style={{ marginTop: "14px", paddingBottom: "40px" }}>
           <SimulateFailureForm workflowId={incident.workflow.id} />
         </div>
       )}
