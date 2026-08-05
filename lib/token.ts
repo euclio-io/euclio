@@ -19,5 +19,5 @@ export function generatePublicSlug(): string {
  * Globally unique and unguessable — the address IS the access token.
  */
 export function generateCanaryAddress(): string {
-  return `canary-${randomBytes(12).toString("base64url")}@${process.env.CANARY_DOMAIN ?? "in.euclio.io"}`;;
+  return `canary-${randomBytes(12).toString("base64url").toLowerCase()}@${process.env.CANARY_DOMAIN ?? "in.euclio.io"}`;
 }
