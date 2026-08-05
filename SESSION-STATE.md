@@ -1,7 +1,7 @@
 # Euclio — Session State
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`.
-> Last reconciled: 2026-08-04 (v6 design system rebuild — all pages on new tokens).
+> Last reconciled: 2026-08-05 (timezone-correctness session — isWithinWindow unified, lib/time.ts, America/Toronto set).
 
 ## Milestone summary
 
@@ -20,6 +20,10 @@
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
 > **Canary inbound VERIFIED live 2026-08-05.** in.euclio.io MX → Resend inbound receiving → Svix webhook → unmatched receipt rendered. Mail topology: root `@euclio.io` = ImprovMX → founder Gmail; `send` / `send.in` = Resend outbound; `in` = Resend inbound (canary). Canary address case bug found and fixed same session (see gotchas below).
+
+> **Timezone-correctness session 2026-08-05.** `isWithinWindow()` moved from inline route logic into `lib/canary-gap.ts` (single source of occurrence math, timezone-aware). Inbound route now resolves effective timezone via `workflow → client → account` join. `lib/time.ts` created as shared formatting helpers for dashboard timestamps. Founder account timezone set to `America/Toronto` via SQL. 18 new `isWithinWindow` tests added to `lib/__tests__/canary-gap.test.ts` (UTC default, America/Toronto live-bug scenario, DST boundary sanity). TODO: add a settings UI field so new accounts can set their timezone (currently defaults to UTC until set manually).
+
+> **Retroactive expectation semantics (intended MVP behaviour, do not "fix"):** When a canary expectation is added to a workflow that already has an open incident, `computeGap()` back-counts all expected occurrences that fell within the incident window — even occurrences that predate the expectation's creation. This is defensible: the sends were due whether or not Euclio knew about the schedule. Observed live 2026-08-05 (3 occurrences back-counted on first expectation creation). New incidents populate gap accounting normally going forward.
 
 > Full milestone detail archived in `docs/session-history.md`.
 
@@ -50,6 +54,8 @@
 - Canary addresses MUST be lowercase at generation; inbound lookup normalizes with `toLowerCase()` — regression-tested as of 2026-08-05 (`lib/__tests__/token.test.ts`, `app/api/canary/inbound/__tests__/matching.test.ts`).
 - The inbound no-leak design (silent 200 on unmatched) can mask matching bugs; check Railway web logs for `canary.unmatched` (now includes `toCount`, `toDomainsDistinct`, `anyMatchesCanaryDomain`) when receipts are missing.
 - Incident pages show "Canary not yet live for this workflow" for incidents whose gap accounting predates canary enablement (`sendsDue = 0`) — this is the honest empty state, not a bug; new incidents populate normally.
+- Occurrence math lives in exactly one module (`lib/canary-gap.ts` — `isWithinWindow` + `computeGap`); never duplicate it in route files or workers.
+- `Account.timezone` defaults to `"UTC"` until set — new accounts will see UTC-shifted times until a settings UI field exists (TODO: add settings page).
 
 ## Fixes applied this session (sanity pass)
 

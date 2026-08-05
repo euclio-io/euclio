@@ -3,7 +3,7 @@ import { Webhook } from "svix";
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { computeGap } from "@/lib/canary-gap";
+import { computeGap, isWithinWindow } from "@/lib/canary-gap";
 
 // POST /api/canary/inbound
 //
@@ -19,6 +19,11 @@ import { computeGap } from "@/lib/canary-gap";
 //   - Svix signature verification on every request.
 //   - No 404 on unmatched canary address (don't leak address existence).
 //   - Ownership is implicit: canaryAddress is globally unique and unguessable.
+//
+// Timezone:
+//   - Expectation matching (isWithinWindow) uses the effective timezone resolved
+//     from workflow → client → account. Single source of occurrence math lives
+//     in lib/canary-gap.ts.
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const secret = process.env.RESEND_INBOUND_SECRET;
@@ -65,16 +70,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ? createHash("sha256").update(subject).digest("hex")
     : null;
 
-  // Find the workflow by canary address (try all To: addresses)
-  // accountId lives on the Client, not the Workflow — join through client.
-  let workflow: { id: string } | null = null;
+  // Find the workflow by canary address (try all To: addresses).
+  // Join through client → account to resolve the effective timezone.
+  let workflow: { id: string; timezone: string } | null = null;
   for (const addr of toAddresses) {
     const found = await prisma.workflow.findFirst({
       where: { canaryAddress: addr.toLowerCase().trim() },
-      select: { id: true },
+      select: {
+        id: true,
+        client: {
+          select: {
+            timezone: true,
+            account: { select: { timezone: true } },
+          },
+        },
+      },
     });
     if (found) {
-      workflow = found;
+      // effectiveTimezone: client.timezone ?? account.timezone ?? "UTC"
+      const tz =
+        found.client.timezone ??
+        found.client.account.timezone ??
+        "UTC";
+      workflow = { id: found.id, timezone: tz };
       break;
     }
   }
@@ -98,18 +116,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const now = new Date();
+  const { timezone } = workflow;
 
-  // Find the nearest active expectation whose window covers now
+  // Find the nearest active expectation whose window covers now.
+  // isWithinWindow() is imported from lib/canary-gap.ts — single source of
+  // occurrence math, timezone-aware.
   const expectations = await prisma.canaryExpectation.findMany({
     where: { workflowId: workflow.id, active: true },
     select: { id: true, rule: true, windowMins: true },
   });
 
-  // Simple matching: find the expectation whose next occurrence is closest to now
-  // within ±windowMins. For MVP we use a greedy first-match approach.
   let expectationId: string | null = null;
   for (const exp of expectations) {
-    if (isWithinWindow(now, exp.rule, exp.windowMins)) {
+    if (isWithinWindow(now, exp.rule, exp.windowMins, timezone)) {
       expectationId = exp.id;
       break;
     }
@@ -153,6 +172,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         openIncident.openedAt,
         now, // incident still open — use now as provisional resolvedAt
         allReceipts,
+        timezone, // thread the effective timezone through gap accounting too
       );
       await prisma.incident.update({
         where: { id: openIncident.id },
@@ -162,35 +182,4 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({ ok: true });
-}
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Check if `now` falls within ±windowMins of the most recent expected occurrence
- * for the given rule. For MVP: parse "daily by HH:MM" or "weekdays by HH:MM"
- * and check if the current time is within the window of today's occurrence.
- */
-function isWithinWindow(now: Date, rule: string, windowMins: number): boolean {
-  const normalized = rule.trim().toLowerCase();
-  const match = normalized.match(/^(daily|weekdays)\s+by\s+(\d{1,2}):(\d{2})$/);
-  if (!match) return false;
-
-  const weekdaysOnly = match[1] === "weekdays";
-  const hour = parseInt(match[2], 10);
-  const minute = parseInt(match[3], 10);
-
-  // Check weekday constraint
-  if (weekdaysOnly) {
-    const dow = now.getUTCDay(); // 0=Sun, 6=Sat
-    if (dow === 0 || dow === 6) return false;
-  }
-
-  // Build today's occurrence time in UTC
-  const todayOccurrence = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hour, minute, 0),
-  );
-
-  const diffMs = Math.abs(now.getTime() - todayOccurrence.getTime());
-  return diffMs <= windowMins * 60 * 1000;
 }

@@ -1,5 +1,5 @@
 /**
- * canary-gap.ts — pure gap-accounting function for the canary sensor.
+ * canary-gap.ts — pure gap-accounting and occurrence-matching for the canary sensor.
  *
  * Honesty invariant (addendum §4):
  *   THE CANARY OBSERVES, IT DOES NOT INFER.
@@ -10,6 +10,11 @@
  *   sendsDue     — how many expected occurrences fell within the incident window
  *   sendsArrived — how many matched receipts arrived AFTER recovery
  *                  (receipts during the incident don't count as "arrived")
+ *
+ * isWithinWindow() answers: does `now` fall within ±windowMins of the most
+ *   recent expected occurrence for the given rule and timezone?
+ *   This is the SINGLE source of occurrence math — used by both computeGap()
+ *   and the inbound route's expectation-matching logic.
  *
  * Rule format (plain text for MVP):
  *   "daily by HH:MM"    — one occurrence per calendar day at HH:MM
@@ -60,6 +65,48 @@ export function computeGap(
   ).length;
 
   return { sendsDue, sendsArrived };
+}
+
+// ── isWithinWindow ────────────────────────────────────────────────────────────
+
+/**
+ * Check whether `now` falls within ±windowMins of today's expected occurrence
+ * for the given rule, interpreted in `timezone`.
+ *
+ * This is the SINGLE source of "when is HH:MM" logic. The inbound route imports
+ * this instead of maintaining its own copy. computeGap() uses the same helpers
+ * (buildOccurrence / toLocalDate) internally.
+ *
+ * @param now        The current time (UTC)
+ * @param rule       Plain-text schedule rule ("daily by HH:MM" or "weekdays by HH:MM")
+ * @param windowMins Match window in minutes (receipt is matched if within ±windowMins)
+ * @param timezone   IANA timezone string (default "UTC")
+ */
+export function isWithinWindow(
+  now: Date,
+  rule: string,
+  windowMins: number,
+  timezone = "UTC",
+): boolean {
+  const parsed = parseRule(rule);
+  if (!parsed) return false;
+
+  const { hour, minute, weekdaysOnly } = parsed;
+
+  // Get the local calendar date for `now` in the target timezone
+  const localDate = toLocalDate(now, timezone);
+
+  // Check weekday constraint using the local calendar day
+  if (weekdaysOnly) {
+    const dow = getDayOfWeek(localDate, timezone);
+    if (dow === 0 || dow === 6) return false;
+  }
+
+  // Build today's occurrence time in the target timezone
+  const todayOccurrence = buildOccurrence(localDate, hour, minute, timezone);
+
+  const diffMs = Math.abs(now.getTime() - todayOccurrence.getTime());
+  return diffMs <= windowMins * 60 * 1000;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

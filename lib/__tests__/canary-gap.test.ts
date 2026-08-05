@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeGap, type GapReceipt } from "../canary-gap";
+import { computeGap, isWithinWindow, type GapReceipt } from "../canary-gap";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -197,5 +197,142 @@ describe("computeGap — timezone handling", () => {
       "America/New_York",
     );
     expect(result.sendsDue).toBe(0);
+  });
+});
+
+// ── isWithinWindow ────────────────────────────────────────────────────────────
+//
+// Regression suite for the live bug found 2026-08-05:
+//   A "daily by 19:05" expectation created by a Toronto user matched 19:05 UTC
+//   because isWithinWindow() was UTC-only. Fixed: isWithinWindow() now lives in
+//   lib/canary-gap.ts and accepts an IANA timezone parameter.
+
+describe("isWithinWindow — UTC default (existing behaviour unchanged)", () => {
+  it("returns true when now is exactly at the occurrence time", () => {
+    // daily by 09:00 UTC, now = 09:00 UTC exactly
+    expect(isWithinWindow(utc("2026-08-05T09:00:00Z"), "daily by 09:00", 30)).toBe(true);
+  });
+
+  it("returns true when now is within the window (before)", () => {
+    // daily by 09:00 UTC, now = 08:45 UTC → 15 min before, within ±30 min
+    expect(isWithinWindow(utc("2026-08-05T08:45:00Z"), "daily by 09:00", 30)).toBe(true);
+  });
+
+  it("returns true when now is within the window (after)", () => {
+    // daily by 09:00 UTC, now = 09:25 UTC → 25 min after, within ±30 min
+    expect(isWithinWindow(utc("2026-08-05T09:25:00Z"), "daily by 09:00", 30)).toBe(true);
+  });
+
+  it("returns false when now is outside the window", () => {
+    // daily by 09:00 UTC, now = 10:00 UTC → 60 min after, outside ±30 min
+    expect(isWithinWindow(utc("2026-08-05T10:00:00Z"), "daily by 09:00", 30)).toBe(false);
+  });
+
+  it("returns false for weekdays rule on a Saturday (UTC)", () => {
+    // 2026-08-01 is a Saturday UTC
+    expect(isWithinWindow(utc("2026-08-01T09:00:00Z"), "weekdays by 09:00", 30)).toBe(false);
+  });
+
+  it("returns false for an unrecognised rule", () => {
+    expect(isWithinWindow(utc("2026-08-05T09:00:00Z"), "every monday", 30)).toBe(false);
+  });
+});
+
+describe("isWithinWindow — America/Toronto timezone (the live bug scenario)", () => {
+  // America/Toronto = UTC-4 in summer (EDT).
+  // "daily by 19:05" Toronto = 23:05 UTC.
+  // Before the fix, isWithinWindow() used UTC math and would match 19:05 UTC
+  // (= 15:05 Toronto), not 23:05 UTC (= 19:05 Toronto).
+
+  it("matches a receipt at 23:02 UTC for 'daily by 19:05' America/Toronto", () => {
+    // 23:02 UTC = 19:02 Toronto EDT — within ±30 min of 19:05 Toronto
+    expect(
+      isWithinWindow(
+        utc("2026-08-05T23:02:00Z"),
+        "daily by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT match a receipt at 19:05 UTC for 'daily by 19:05' America/Toronto", () => {
+    // 19:05 UTC = 15:05 Toronto EDT — 4 hours before the expected occurrence
+    expect(
+      isWithinWindow(
+        utc("2026-08-05T19:05:00Z"),
+        "daily by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(false);
+  });
+
+  it("matches a receipt at 23:30 UTC (edge of window) for 'daily by 19:05' America/Toronto", () => {
+    // 23:30 UTC = 19:30 Toronto EDT — exactly 25 min after 19:05, within ±30 min
+    expect(
+      isWithinWindow(
+        utc("2026-08-05T23:30:00Z"),
+        "daily by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT match a receipt at 23:36 UTC (just outside window) for 'daily by 19:05' America/Toronto", () => {
+    // 23:36 UTC = 19:36 Toronto EDT — 31 min after 19:05, outside ±30 min
+    expect(
+      isWithinWindow(
+        utc("2026-08-05T23:36:00Z"),
+        "daily by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(false);
+  });
+
+  it("does NOT match on a Saturday for 'weekdays by 19:05' America/Toronto", () => {
+    // 2026-08-01 23:05 UTC = Sat 19:05 Toronto EDT
+    expect(
+      isWithinWindow(
+        utc("2026-08-01T23:05:00Z"),
+        "weekdays by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("isWithinWindow — DST boundary sanity (America/Toronto)", () => {
+  // DST ends first Sunday of November. 2026-11-01 02:00 → 01:00 (clocks fall back).
+  // "daily by 19:05" America/Toronto:
+  //   Before DST end (EDT, UTC-4): 19:05 Toronto = 23:05 UTC
+  //   After DST end (EST, UTC-5):  19:05 Toronto = 00:05 UTC next day
+
+  it("matches correctly in EDT (UTC-4) before DST end", () => {
+    // 2026-10-31 (Saturday before DST end) — but we use a weekday for clarity
+    // 2026-10-30 (Friday) 23:05 UTC = 19:05 Toronto EDT
+    expect(
+      isWithinWindow(
+        utc("2026-10-30T23:05:00Z"),
+        "daily by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(true);
+  });
+
+  it("matches correctly in EST (UTC-5) after DST end", () => {
+    // 2026-11-02 (Monday after DST end) 00:05 UTC = 19:05 Toronto EST
+    expect(
+      isWithinWindow(
+        utc("2026-11-02T00:05:00Z"),
+        "daily by 19:05",
+        30,
+        "America/Toronto",
+      ),
+    ).toBe(true);
   });
 });

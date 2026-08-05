@@ -12,6 +12,7 @@ import { Timeline } from "@/components/ui/Timeline";
 import { SimulateFailureForm } from "@/app/dashboard/simulate-failure-form";
 import { ResolveForm } from "./resolve-form";
 import { DiagnosticsPanel } from "./diagnostics-panel";
+import { formatDateTimeAbsolute, formatTimeOnly } from "@/lib/time";
 
 /**
  * Incident detail page — matches euclio-incident-view.html (v6 design system).
@@ -25,29 +26,8 @@ import { DiagnosticsPanel } from "./diagnostics-panel";
  *
  * Ownership: incident → workflow → client → accountId (inside the query).
  * errorText is rendered ONLY in DiagnosticsPanel — nothing composable imports it.
+ * Timestamps render in the effective timezone (client.timezone ?? account.timezone ?? "UTC").
  */
-
-function formatAbsoluteTime(date: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  }).format(date);
-}
-
-function formatTimeOnly(date: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  }).format(date);
-}
 
 function formatDuration(from: Date, to: Date): string {
   const total = Math.round((to.getTime() - from.getTime()) / 60_000);
@@ -280,9 +260,9 @@ export default async function IncidentDetailPage({
             color: "var(--t3)",
           }}
         >
-          {formatAbsoluteTime(incident.openedAt, timezone)}
+          {formatDateTimeAbsolute(incident.openedAt, timezone)}
           {incident.resolvedAt && (
-            <> – {formatAbsoluteTime(incident.resolvedAt, timezone)}</>
+            <> – {formatDateTimeAbsolute(incident.resolvedAt, timezone)}</>
           )}
         </span>
       </div>
