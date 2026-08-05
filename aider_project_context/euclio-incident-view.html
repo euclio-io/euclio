@@ -20,7 +20,7 @@
   *{box-sizing:border-box;margin:0;}
   body{background:#F2F4F7;font-family:var(--f);color:var(--t1);padding:40px;display:flex;justify-content:center;
        -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;}
-  .app{width:1180px;height:830px;background:var(--canvas);border-radius:12px;overflow:hidden;
+  .app{width:1180px;background:var(--canvas);border-radius:12px;overflow:hidden;
        display:grid;grid-template-columns:64px 1fr;box-shadow:0 24px 48px -12px rgba(16,24,40,.18);}
   .rail{background:var(--pine);display:flex;flex-direction:column;align-items:center;padding:16px 0 14px;gap:4px;}
   .cl{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -31,7 +31,7 @@
   .me{width:30px;height:30px;border-radius:50%;color:var(--rail-text);background:var(--pine-2);
       display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;}
   svg.ic{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:none;}
-  .main{min-width:0;padding:28px 32px 0;overflow:hidden;}
+  .main{min-width:0;padding:28px 32px 40px;overflow:hidden;}
   .crumb{font-size:13px;color:var(--t3);display:flex;gap:6px;align-items:center;}
   .crumb b{color:var(--t2);font-weight:500;}
   .head{display:flex;align-items:flex-start;gap:14px;margin-top:6px;}
@@ -39,39 +39,22 @@
   .h-sub{font-size:13px;color:var(--t2);margin-top:3px;}
   .h-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
   .when{font-size:13px;color:var(--t3);}
-  .search{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t3);border:1px solid var(--border-2);
-          border-radius:8px;padding:8px 12px;background:#fff;box-shadow:var(--sh);width:200px;}
-  .sel{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--t2);
-       border:1px solid var(--border-2);border-radius:8px;padding:8px 12px;background:#fff;box-shadow:var(--sh);}
   .btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:8px;
        padding:9px 14px;border:1px solid var(--pine);background:var(--pine);color:#fff;box-shadow:var(--sh);}
   .btn2{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:8px;
         padding:9px 14px;border:1px solid var(--border-2);background:#fff;color:var(--t2);box-shadow:var(--sh);}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 16px;}
-  .stat{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--sh);}
-  .stat .k{font-size:13px;font-weight:500;color:var(--t2);}
-  .stat .v{font-size:24px;font-weight:600;letter-spacing:-.01em;margin-top:6px;}
-  .stat .v.g{color:var(--green-tx);} .stat .v.a{color:var(--amber-tx);}
-  .stat .v small{font-size:14px;font-weight:500;color:var(--t2);}
-  .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;}
   .card{background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh);overflow:hidden;}
   .card + .card{margin-top:14px;}
   .c-h{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--border);}
   .c-t{font-size:15px;font-weight:600;}
   .cnt{font-size:12px;font-weight:500;color:var(--t2);background:var(--subtle);border:1px solid var(--border);border-radius:999px;padding:1px 8px;}
   .c-h .r{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--t2);}
-  .warn-card{border-color:var(--amber-bd);}
-  .warn-card .c-h{background:var(--amber-bg);border-bottom-color:var(--amber-bd);}
   .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;border-radius:999px;padding:3px 9px;border:1px solid;white-space:nowrap;}
   .badge .d{width:6px;height:6px;border-radius:50%;}
   .badge.open{color:var(--amber-tx);background:var(--amber-bg);border-color:var(--amber-bd);} .badge.open .d{background:var(--amber);}
   .badge.res{color:var(--green-tx);background:var(--green-bg);border-color:var(--green-bd);} .badge.res .d{background:var(--green);}
   .badge.quiet{color:var(--gray-tx);background:var(--gray-bg);border-color:var(--gray-bd);} .badge.quiet .d{background:var(--gray);}
   .mono{font-family:var(--mono);font-size:12px;}
-  .kv{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);font-size:13.5px;align-items:baseline;}
-  .kv:last-child{border-bottom:none;}
-  .kv .k{color:var(--t2);font-weight:500;font-size:13px;}
-  .kv .a{color:var(--amber-tx);font-weight:600;}
   .tl{padding:8px 16px 12px 22px;}
   .tl-e{position:relative;padding:9px 0 9px 22px;border-left:2px solid var(--border);}
   .tl-e:last-child{border-left-color:transparent;}
@@ -106,6 +89,7 @@
   .verd{display:grid;grid-template-columns:1fr auto;gap:28px;align-items:start;padding:15px 16px;}
   .sum{font-size:14px;line-height:1.65;max-width:64ch;}
   .acts{display:flex;flex-direction:column;gap:9px;align-items:stretch;padding-top:2px;}
+  .grid2{display:grid;grid-template-columns:1.22fr 1fr;gap:14px;}
 
 </style>
 </head>
@@ -124,6 +108,8 @@
       <span class="badge res" style="position:relative;top:2px;"><span class="d"></span>Resolved</span>
       <span class="h-right when">Jun 14 &middot; 09:02:41 &ndash; 09:41:07</span>
     </div>
+
+    <!-- 1. ImpactStrip -->
     <div class="card" style="margin-top:16px;">
       <div class="impact">
         <div class="ih"><div class="v">0</div><div class="k">Outstanding</div></div>
@@ -135,17 +121,9 @@
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="c-h"><span class="c-t">Summary</span><span class="r">from the record</span></div>
-      <div class="verd">
-        <div>
-          <div class="sum">A 12-minute pause on Jun 14, 9:02 to 9:14. Caught at 9:03. The workflow reported a failure (timeout at the calendar API). Four reminders were due during the pause; all four arrived by 9:17. The 26 days before: quiet, 212 sends, 212 receipts.</div>
-          <div class="slot" style="margin-top:11px;">Your read &mdash; required before any client note</div>
-        </div>
-        <div class="acts"><span class="btn" style="justify-content:center;">Copy summary</span><span class="btn2" style="justify-content:center;">Compose client note</span></div>
-      </div>
-    </div>
-    <div class="grid" style="grid-template-columns:1.22fr 1fr;">
+
+    <!-- 2. Events + Receipts two-column grid -->
+    <div class="grid2" style="margin-top:14px;">
       <div class="card">
         <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg><span class="c-t">Events</span><span class="cnt">6</span></div>
         <div class="tl">
@@ -157,20 +135,32 @@
           <div class="tl-e"><span class="node"></span><div class="tl-top"><span class="tl-k">Resolved</span><span class="tl-t">09:41:07</span></div><div class="tl-x"><span class="note">"rotated the calendar credentials, redeployed"</span><span class="who">ALEX</span></div></div>
         </div>
       </div>
-      <div>
-        <div class="card" style="margin-top:0;">
-          <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg><span class="c-t">Receipts</span><span class="cnt">4 of 4</span><span class="r"><span class="link">Canary detail</span></span></div>
-          <div class="th" style="grid-template-columns:80px 100px 1fr;"><span>Expected</span><span>Received</span><span style="text-align:right;">Delta</span></div>
-          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:05</span><span>09:16:02</span><span class="g" style="text-align:right;">+11m</span></div>
-          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:05</span><span>09:16:04</span><span class="g" style="text-align:right;">+11m</span></div>
-          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:10</span><span>09:16:47</span><span class="g" style="text-align:right;">+6m</span></div>
-          <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:10</span><span>09:17:11</span><span class="g" style="text-align:right;">+7m</span></div>
-          <div class="sum-row">4 expected &middot; 4 received &middot; 0 outstanding</div>
-        </div>
-        <div class="card">
-          <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg><span class="c-t">Diagnostics</span><span class="cnt">1</span><span class="r">redacted &middot; ttl 30d</span></div>
-        </div>
+      <div class="card">
+        <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg><span class="c-t">Receipts</span><span class="cnt">4 of 4</span><span class="r"><span class="link">Canary detail</span></span></div>
+        <div class="th" style="grid-template-columns:80px 100px 1fr;"><span>Expected</span><span>Received</span><span style="text-align:right;">Delta</span></div>
+        <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:05</span><span>09:16:02</span><span class="g" style="text-align:right;">+11m</span></div>
+        <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:05</span><span>09:16:04</span><span class="g" style="text-align:right;">+11m</span></div>
+        <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:10</span><span>09:16:47</span><span class="g" style="text-align:right;">+6m</span></div>
+        <div class="trw" style="grid-template-columns:80px 100px 1fr;"><span>09:10</span><span>09:17:11</span><span class="g" style="text-align:right;">+7m</span></div>
+        <div class="sum-row">4 expected &middot; 4 received &middot; 0 outstanding</div>
       </div>
+    </div>
+
+    <!-- 3. Summary card — full-width -->
+    <div class="card">
+      <div class="c-h"><span class="c-t">Summary</span><span class="r">from the record</span></div>
+      <div class="verd">
+        <div>
+          <div class="sum">A 12-minute pause on Jun 14, 9:02 to 9:14. Caught at 9:03. The workflow reported a failure (timeout at the calendar API). Four reminders were due during the pause; all four arrived by 9:17. The 26 days before: quiet, 212 sends, 212 receipts.</div>
+          <div class="slot" style="margin-top:11px;">Your read &mdash; required before any client note</div>
+        </div>
+        <div class="acts"><span class="btn" style="justify-content:center;">Copy summary</span><span class="btn2" style="justify-content:center;">Compose client note</span></div>
+      </div>
+    </div>
+
+    <!-- 4. Diagnostics — collapsed by default, ONLY place errorText renders -->
+    <div class="card">
+      <div class="c-h"><svg class="ic" viewBox="0 0 24 24" style="width:13px;height:13px;"><path d="m9 18 6-6-6-6"/></svg><span class="c-t">Diagnostics</span><span class="cnt">1</span><span class="r">redacted &middot; ttl 30d</span></div>
     </div>
   </div>
 </div>

@@ -76,3 +76,258 @@ body {
   -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Dashboard shell ──────────────────────────────────────────────────────── */
+
+/* Desktop: 64px rail + content */
+.dash-shell {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  min-height: 100vh;
+  background: var(--page-bg);
+}
+
+/* Rail — desktop: sticky left column */
+.dash-rail {
+  background: var(--pine);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0 14px;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Top bar — hidden on desktop, shown on mobile */
+.dash-topbar {
+  display: none;
+}
+
+/* Content area */
+.dash-content {
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--canvas);
+}
+
+/* ── Page padding ─────────────────────────────────────────────────────────── */
+.page-pad {
+  padding: 28px 32px 40px;
+  min-width: 0;
+}
+
+/* ── Two-column grids ─────────────────────────────────────────────────────── */
+.grid-2col-home {
+  display: grid;
+  grid-template-columns: 1.62fr 1fr;
+  gap: 14px;
+}
+
+.grid-2col-ledger {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 14px;
+}
+
+.grid-2col-setup {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 14px;
+}
+
+.grid-2col-incident {
+  display: grid;
+  grid-template-columns: 1.22fr 1fr;
+  gap: 14px;
+}
+
+.grid-2col-canary {
+  display: grid;
+  grid-template-columns: 1.22fr 1fr;
+  gap: 14px;
+}
+
+/* ── Stat card rows ───────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 20px 0 16px;
+}
+
+/* ── Header action rows ───────────────────────────────────────────────────── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.header-search {
+  width: 220px;
+}
+
+/* ── Month bar ────────────────────────────────────────────────────────────── */
+.month-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.month-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Table scroll wrappers ────────────────────────────────────────────────── */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+/* Fade hint on right edge when table overflows */
+.table-scroll::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 32px;
+  height: 100%;
+  background: linear-gradient(to right, transparent, var(--canvas));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.table-scroll.overflows::after {
+  opacity: 1;
+}
+
+/* ── Mobile breakpoint — 768px ────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Shell: single column, top bar replaces rail */
+  .dash-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  /* Rail hidden on mobile */
+  .dash-rail {
+    display: none;
+  }
+
+  /* Top bar shown on mobile */
+  .dash-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--pine);
+    padding: 0 12px;
+    height: 52px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    overflow: hidden;
+  }
+
+  .dash-topbar-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+  }
+
+  /* Client monogram strip — horizontally scrollable, centered */
+  .dash-topbar-clients {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 8px;
+    justify-content: center;
+  }
+
+  .dash-topbar-clients::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dash-topbar-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+  }
+
+  /* Page padding reduced on mobile */
+  .page-pad {
+    padding: 16px 16px 32px;
+  }
+
+  /* Two-column grids → single column */
+  .grid-2col-home,
+  .grid-2col-ledger,
+  .grid-2col-setup,
+  .grid-2col-incident,
+  .grid-2col-canary {
+    grid-template-columns: 1fr;
+  }
+
+  /* Home: Needs-attention stacks ABOVE the book */
+  .grid-2col-home {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  /* Stat grid: 2×2 on mobile */
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 14px 0 12px;
+  }
+
+  /* Header action rows: wrap, search grows full-width */
+  .header-actions {
+    flex-wrap: wrap;
+    margin-left: 0;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .header-search {
+    width: 100%;
+    flex: 1 1 100%;
+    order: -1;
+  }
+
+  /* Month bar: already overflow-x scroll, just ensure no wrap */
+  .month-bar {
+    flex-wrap: nowrap;
+  }
+
+  /* Ensure no horizontal page scroll */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Touch targets ≥44px for interactive elements */
+  button,
+  a[role="button"],
+  [type="submit"],
+  [type="button"] {
+    min-height: 44px;
+  }
+}

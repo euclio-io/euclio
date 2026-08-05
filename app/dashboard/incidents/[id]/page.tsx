@@ -19,10 +19,9 @@ import { formatDateTimeAbsolute, formatTimeOnly } from "@/lib/time";
  *
  * Focus order (the anxious landing):
  *   1. ImpactStrip card — outstanding count (green 0 / amber >0 crisis switch)
- *   2. Summary card — facts text + "Your read" slot + Copy summary + Compose
- *   3. Events timeline card (left column)
- *   4. Receipts card (right column)
- *   5. Diagnostics card (collapsed by default — ONLY place errorText renders)
+ *   2. Events timeline card (left column) + Receipts card (right column)
+ *   3. Summary card full-width — facts text + "Your read" slot + Copy summary + Compose
+ *   4. Diagnostics card (collapsed by default — ONLY place errorText renders)
  *
  * Ownership: incident → workflow → client → accountId (inside the query).
  * errorText is rendered ONLY in DiagnosticsPanel — nothing composable imports it.
@@ -267,7 +266,7 @@ export default async function IncidentDetailPage({
         </span>
       </div>
 
-      {/* ── ImpactStrip card ── */}
+      {/* ── 1. ImpactStrip card ── */}
       <Card style={{ marginTop: "16px" }}>
         <ImpactStrip
           heroValue={String(outstanding)}
@@ -277,7 +276,133 @@ export default async function IncidentDetailPage({
         />
       </Card>
 
-      {/* ── Summary card ── */}
+      {/* ── 2. Two-column grid: Events + Receipts ── */}
+      <div className="grid-2col-incident" style={{ marginTop: "14px" }}>
+        {/* Events timeline */}
+        <Card>
+          <CardHeader
+            title="Events"
+            count={tlEvents.length}
+            collapse="open"
+          />
+          <Timeline events={tlEvents} />
+        </Card>
+
+        {/* Receipts card */}
+        <Card>
+          <CardHeader
+            title="Receipts"
+            count={
+              incident.sendsDue !== null
+                ? `${incident.sendsArrived ?? 0} of ${incident.sendsDue}`
+                : undefined
+            }
+            right={
+              incident.sendsDue !== null && incident.sendsDue > 0 ? (
+                <Link
+                  href={`/dashboard/clients/${clientId}/workflows/${incident.workflow.id}/canary`}
+                  style={{
+                    color: "var(--pine)",
+                    fontWeight: 500,
+                    fontSize: "13px",
+                    textDecoration: "none",
+                  }}
+                >
+                  Canary detail
+                </Link>
+              ) : undefined
+            }
+            collapse="open"
+          />
+          {receipts.length === 0 ? (
+            <div
+              style={{
+                padding: "10px 16px",
+                fontSize: "13px",
+                color: "var(--t2)",
+              }}
+            >
+              {incident.sendsDue === null
+                ? "Canary not yet live for this workflow."
+                : "No receipts recorded."}
+            </div>
+          ) : (
+            <>
+              {/* Table header */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "80px 100px 1fr",
+                  gap: "12px",
+                  padding: "9px 16px",
+                  background: "var(--subtle)",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                {["Expected", "Received", "Delta"].map((h, i) => (
+                  <span
+                    key={h}
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--t3)",
+                      textAlign: i === 2 ? "right" : "left",
+                    }}
+                  >
+                    {h}
+                  </span>
+                ))}
+              </div>
+              {receipts.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "80px 100px 1fr",
+                    gap: "12px",
+                    padding: "9px 16px",
+                    borderBottom: "1px solid var(--border)",
+                    fontSize: "13.5px",
+                    alignItems: "baseline",
+                    fontFamily: "var(--mono)",
+                  }}
+                >
+                  <span style={{ color: "var(--t2)" }}>
+                    {r.expectationId ? "matched" : "—"}
+                  </span>
+                  <span>
+                    {formatTimeOnly(r.receivedAt, timezone)}
+                  </span>
+                  <span
+                    style={{
+                      textAlign: "right",
+                      color: r.expectationId
+                        ? "var(--green-tx)"
+                        : "var(--amber-tx)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {r.expectationId ? "matched" : "unexpected"}
+                  </span>
+                </div>
+              ))}
+              <div
+                style={{
+                  padding: "11px 16px",
+                  borderTop: "1px solid var(--border)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  background: "var(--subtle)",
+                }}
+              >
+                {incident.sendsDue ?? 0} expected · {incident.sendsArrived ?? 0} received · {outstanding} outstanding
+              </div>
+            </>
+          )}
+        </Card>
+      </div>
+
+      {/* ── 3. Summary card — full-width ── */}
       <Card style={{ marginTop: "14px" }}>
         <CardHeader title="Summary" right="from the record" />
         <div
@@ -319,6 +444,12 @@ export default async function IncidentDetailPage({
             >
               Your read — required before any client note
             </div>
+            {/* Resolution note + Mark resolved (when open) */}
+            {incident.status === "open" && (
+              <div style={{ marginTop: "14px" }}>
+                <ResolveForm incidentId={incident.id} />
+              </div>
+            )}
           </div>
           <div
             style={{
@@ -370,156 +501,18 @@ export default async function IncidentDetailPage({
             >
               Compose client note
             </Link>
-            {incident.status === "open" && (
-              <ResolveForm incidentId={incident.id} />
-            )}
           </div>
         </div>
       </Card>
 
-      {/* ── Two-column grid: Events + Receipts/Diagnostics ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.22fr 1fr",
-          gap: "14px",
-          marginTop: "14px",
-        }}
-      >
-        {/* Events timeline */}
-        <Card>
-          <CardHeader
-            title="Events"
-            count={tlEvents.length}
-            collapse="open"
-          />
-          <Timeline events={tlEvents} />
-        </Card>
-
-        <div>
-          {/* Receipts card */}
-          <Card>
-            <CardHeader
-              title="Receipts"
-              count={
-                incident.sendsDue !== null
-                  ? `${incident.sendsArrived ?? 0} of ${incident.sendsDue}`
-                  : undefined
-              }
-              right={
-                incident.sendsDue !== null && incident.sendsDue > 0 ? (
-                  <Link
-                    href={`/dashboard/clients/${clientId}/workflows/${incident.workflow.id}/canary`}
-                    style={{
-                      color: "var(--pine)",
-                      fontWeight: 500,
-                      fontSize: "13px",
-                      textDecoration: "none",
-                    }}
-                  >
-                    Canary detail
-                  </Link>
-                ) : undefined
-              }
-              collapse="open"
-            />
-            {receipts.length === 0 ? (
-              <div
-                style={{
-                  padding: "10px 16px",
-                  fontSize: "13px",
-                  color: "var(--t2)",
-                }}
-              >
-                {incident.sendsDue === null
-                  ? "Canary not yet live for this workflow."
-                  : "No receipts recorded."}
-              </div>
-            ) : (
-              <>
-                {/* Table header */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "80px 100px 1fr",
-                    gap: "12px",
-                    padding: "9px 16px",
-                    background: "var(--subtle)",
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  {["Expected", "Received", "Delta"].map((h, i) => (
-                    <span
-                      key={h}
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 500,
-                        color: "var(--t3)",
-                        textAlign: i === 2 ? "right" : "left",
-                      }}
-                    >
-                      {h}
-                    </span>
-                  ))}
-                </div>
-                {receipts.map((r) => (
-                  <div
-                    key={r.id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "80px 100px 1fr",
-                      gap: "12px",
-                      padding: "9px 16px",
-                      borderBottom: "1px solid var(--border)",
-                      fontSize: "13.5px",
-                      alignItems: "baseline",
-                      fontFamily: "var(--mono)",
-                    }}
-                  >
-                    <span style={{ color: "var(--t2)" }}>
-                      {r.expectationId ? "matched" : "—"}
-                    </span>
-                    <span>
-                      {formatTimeOnly(r.receivedAt, timezone)}
-                    </span>
-                    <span
-                      style={{
-                        textAlign: "right",
-                        color: r.expectationId
-                          ? "var(--green-tx)"
-                          : "var(--amber-tx)",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {r.expectationId ? "matched" : "unexpected"}
-                    </span>
-                  </div>
-                ))}
-                <div
-                  style={{
-                    padding: "11px 16px",
-                    borderTop: "1px solid var(--border)",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    background: "var(--subtle)",
-                  }}
-                >
-                  {incident.sendsDue ?? 0} expected · {incident.sendsArrived ?? 0} received · {outstanding} outstanding
-                </div>
-              </>
-            )}
-          </Card>
-
-          {/* Diagnostics card — collapsed by default, ONLY place errorText renders */}
-          <Card style={{ marginTop: "14px" }}>
-            <DiagnosticsPanel
-              errorText={incident.errorText}
-              errorRedactedByServer={incident.errorRedactedByServer}
-              count={incident.errorText ? 1 : 0}
-            />
-          </Card>
-        </div>
-      </div>
+      {/* ── 4. Diagnostics card — collapsed by default, ONLY place errorText renders ── */}
+      <Card style={{ marginTop: "14px" }}>
+        <DiagnosticsPanel
+          errorText={incident.errorText}
+          errorRedactedByServer={incident.errorRedactedByServer}
+          count={incident.errorText ? 1 : 0}
+        />
+      </Card>
 
       {/* Simulate failure */}
       {incident.workflow.status !== "down" && (

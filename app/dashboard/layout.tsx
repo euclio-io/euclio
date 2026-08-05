@@ -6,10 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateAccountForCurrentUser } from "@/lib/account";
 
 /**
- * Dashboard shell — 64px pine rail + content area.
- * Matches the rail spec across all six v6 design files.
+ * Dashboard shell — responsive layout.
  *
- * Rail (top → bottom):
+ * Desktop (≥769px): 64px pine rail + content area.
+ * Mobile (<768px): sticky top bar (logo | scrollable client strip | avatar).
+ *
+ * Same component, responsive variant — navigation logic is not forked.
+ * CSS classes live in globals.css (.dash-shell, .dash-rail, .dash-topbar, etc.)
+ *
+ * Rail / top bar (top → bottom / left → right):
  *   Euclio logomark (links home)
  *   Client monograms (34px circles; active = pine-2 fill; open incident = 7px amber dot)
  *   ── spacer ──
@@ -52,30 +57,107 @@ export default async function DashboardLayout({
     .slice(0, 2)
     .toUpperCase();
 
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "64px 1fr",
-        minHeight: "100vh",
-        background: "var(--page-bg)",
-      }}
-    >
-      {/* ── Rail ── */}
-      <aside
+  // Shared logomark SVG
+  const logomark = (
+    <svg width="20" height="20" viewBox="0 0 64 64" aria-label="Euclio">
+      <g
+        fill="none"
+        stroke="#F5F6F4"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="32" cy="32" r="26.5" />
+        <path d="M22 16 V48" />
+        <path d="M22 16 H44" />
+        <path d="M22 32 H27 L30 24 L33 40 L36 32 H43" />
+        <path d="M22 48 H44" />
+      </g>
+    </svg>
+  );
+
+  // Shared client monogram list (used in both rail and top bar)
+  const clientMonograms = clients.map((client) => {
+    const hasIncident = client.workflows.some(
+      (w) => w.incidents.length > 0,
+    );
+    const initials = client.name
+      .split(/\s+/)
+      .map((w: string) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+    return (
+      <Link
+        key={client.id}
+        href={`/dashboard/clients/${client.id}`}
+        title={client.name}
         style={{
-          background: "var(--pine)",
+          width: "32px",
+          height: "32px",
+          borderRadius: "50%",
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
-          padding: "16px 0 14px",
-          gap: "4px",
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-          overflowY: "auto",
+          justifyContent: "center",
+          fontSize: "11px",
+          fontWeight: 600,
+          color: "var(--rail-muted)",
+          position: "relative",
+          margin: "3px 0",
+          textDecoration: "none",
+          flexShrink: 0,
         }}
       >
+        {initials}
+        {hasIncident && (
+          <span
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 0,
+              width: "7px",
+              height: "7px",
+              borderRadius: "50%",
+              background: "var(--amber)",
+              border: "1.5px solid var(--pine)",
+            }}
+          />
+        )}
+      </Link>
+    );
+  });
+
+  // Shared user avatar button
+  const userAvatar = (
+    <SignOutButton redirectUrl="https://euclio.io">
+      <button
+        title={`${account.name} — click to sign out`}
+        style={{
+          width: "30px",
+          height: "30px",
+          borderRadius: "50%",
+          background: "var(--pine-2)",
+          color: "var(--rail-text)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "10px",
+          fontWeight: 600,
+          border: "none",
+          cursor: "pointer",
+          minHeight: "unset",
+        }}
+      >
+        {accountInitials}
+      </button>
+    </SignOutButton>
+  );
+
+  return (
+    <div className="dash-shell">
+      {/* ── Desktop rail ── */}
+      <aside className="dash-rail">
         {/* Logomark */}
         <Link
           href="/dashboard"
@@ -86,73 +168,11 @@ export default async function DashboardLayout({
             marginBottom: "10px",
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 64 64" aria-label="Euclio">
-            <g
-              fill="none"
-              stroke="#F5F6F4"
-              strokeWidth="3.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="32" cy="32" r="26.5" />
-              <path d="M22 16 V48" />
-              <path d="M22 16 H44" />
-              <path d="M22 32 H27 L30 24 L33 40 L36 32 H43" />
-              <path d="M22 48 H44" />
-            </g>
-          </svg>
+          {logomark}
         </Link>
 
         {/* Client monograms */}
-        {clients.map((client) => {
-          const hasIncident = client.workflows.some(
-            (w) => w.incidents.length > 0,
-          );
-          const initials = client.name
-            .split(/\s+/)
-            .map((w: string) => w[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase();
-
-          return (
-            <Link
-              key={client.id}
-              href={`/dashboard/clients/${client.id}`}
-              title={client.name}
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "var(--rail-muted)",
-                position: "relative",
-                margin: "3px 0",
-                textDecoration: "none",
-              }}
-            >
-              {initials}
-              {hasIncident && (
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: 0,
-                    width: "7px",
-                    height: "7px",
-                    borderRadius: "50%",
-                    background: "var(--amber)",
-                    border: "1.5px solid var(--pine)",
-                  }}
-                />
-              )}
-            </Link>
-          );
-        })}
+        {clientMonograms}
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
@@ -174,31 +194,31 @@ export default async function DashboardLayout({
         </svg>
 
         {/* User avatar */}
-        <SignOutButton redirectUrl="https://euclio.io">
-          <button
-            title={`${account.name} — click to sign out`}
-            style={{
-              width: "30px",
-              height: "30px",
-              borderRadius: "50%",
-              background: "var(--pine-2)",
-              color: "var(--rail-text)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "10px",
-              fontWeight: 600,
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            {accountInitials}
-          </button>
-        </SignOutButton>
+        {userAvatar}
       </aside>
 
+      {/* ── Mobile top bar ── */}
+      <header className="dash-topbar">
+        {/* Logo left */}
+        <div className="dash-topbar-logo">
+          <Link href="/dashboard" style={{ display: "flex", alignItems: "center" }}>
+            {logomark}
+          </Link>
+        </div>
+
+        {/* Client monogram strip center — horizontally scrollable */}
+        <div className="dash-topbar-clients">
+          {clientMonograms}
+        </div>
+
+        {/* Avatar right */}
+        <div className="dash-topbar-avatar">
+          {userAvatar}
+        </div>
+      </header>
+
       {/* ── Content ── */}
-      <div style={{ minWidth: 0, overflowY: "auto", background: "var(--canvas)" }}>
+      <div className="dash-content">
         {children}
       </div>
     </div>

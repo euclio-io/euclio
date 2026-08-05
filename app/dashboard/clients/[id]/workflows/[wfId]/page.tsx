@@ -9,7 +9,6 @@ import { EnableCanaryForm } from "@/app/dashboard/enable-canary-form";
 import { SimulateFailureForm } from "@/app/dashboard/simulate-failure-form";
 import { SnippetTabs } from "./snippet-tabs";
 import { Card, CardHeader } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 
 /**
  * Workflow setup page — "Add the check-in"
@@ -44,7 +43,7 @@ export default async function WorkflowSetupPage({
       lastPingAt: true,
       expectedIntervalMinutes: true,
       canaryAddress: true,
-      client: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true, account: { select: { timezone: true } } } },
       expectations: {
         where: { active: true },
         select: { id: true, rule: true, windowMins: true },
@@ -64,7 +63,7 @@ export default async function WorkflowSetupPage({
   const failUrl = `${baseUrl}/api/ping/${workflow.token}/fail`;
 
   return (
-    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
+    <div className="page-pad">
       {/* ── Breadcrumb ── */}
       <div
         style={{
@@ -123,13 +122,7 @@ export default async function WorkflowSetupPage({
       </div>
 
       {/* ── Two-column grid ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.35fr 1fr",
-          gap: "14px",
-        }}
-      >
+      <div className="grid-2col-setup">
         {/* ── Left: snippet + fail ── */}
         <div>
           {/* Snippet card with tabs */}
@@ -313,50 +306,13 @@ export default async function WorkflowSetupPage({
                   </div>
                 ))}
 
-                {workflow.expectations.length > 0 ? (
-                  workflow.expectations.map((e) => (
-                    <div
-                      key={e.id}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "180px 1fr",
-                        gap: "12px",
-                        padding: "11px 16px",
-                        borderBottom: "1px solid var(--border)",
-                        fontSize: "13.5px",
-                        alignItems: "baseline",
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: "var(--t2)",
-                          fontWeight: 500,
-                          fontSize: "13px",
-                        }}
-                      >
-                        Expected
-                      </span>
-                      <span style={{ fontSize: "13.5px", color: "var(--t1)" }}>
-                        {e.rule} · window {e.windowMins} min{" "}
-                        <Link
-                          href="#"
-                          style={{
-                            color: "var(--pine)",
-                            fontWeight: 500,
-                            fontSize: "13px",
-                            textDecoration: "none",
-                          }}
-                        >
-                          Edit
-                        </Link>
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ padding: "14px 16px" }}>
-                    <AddExpectationForm workflowId={workflow.id} />
-                  </div>
-                )}
+                <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)" }}>
+                  <AddExpectationForm
+                    workflowId={workflow.id}
+                    expectations={workflow.expectations}
+                    timezone={workflow.client.account.timezone ?? "UTC"}
+                  />
+                </div>
               </>
             ) : (
               <div style={{ padding: "14px 16px" }}>

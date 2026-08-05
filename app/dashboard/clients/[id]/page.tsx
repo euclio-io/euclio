@@ -286,7 +286,7 @@ export default async function ClientLedgerPage({
   const totalEntries = activeMonthIncidents.length + canaryEvents.length;
 
   return (
-    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
+    <div className="page-pad">
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
         <div>
@@ -377,14 +377,7 @@ export default async function ClientLedgerPage({
       </div>
 
       {/* ── Stat cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "14px",
-          margin: "20px 0 16px",
-        }}
-      >
+      <div className="stat-grid">
         {[
           { k: "Receipts · 30d", v: receipts30d.toLocaleString() },
           { k: "Check-ins · 30d", v: checkins30d.toLocaleString() },
@@ -437,15 +430,7 @@ export default async function ClientLedgerPage({
       </div>
 
       {/* ── Month bar ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          margin: "2px 0 16px",
-          flexWrap: "wrap",
-        }}
-      >
+      <div className="month-bar">
         <span
           style={{ fontSize: "13px", fontWeight: 600, marginRight: "6px" }}
         >
@@ -525,13 +510,7 @@ export default async function ClientLedgerPage({
       </div>
 
       {/* ── Two-column grid ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.5fr 1fr",
-          gap: "14px",
-        }}
-      >
+      <div className="grid-2col-ledger">
         {/* ── Left: Register ── */}
         <Card>
           <CardHeader

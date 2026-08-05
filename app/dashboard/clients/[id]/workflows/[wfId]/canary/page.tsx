@@ -164,7 +164,7 @@ export default async function CanaryPage({
   const dailyEntries = [...byDay.entries()].slice(0, 7);
 
   return (
-    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
+    <div className="page-pad">
       {/* ── Breadcrumb ── */}
       <div
         style={{
@@ -282,14 +282,7 @@ export default async function CanaryPage({
       </Card>
 
       {/* ── Two-column grid ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.22fr 1fr",
-          gap: "14px",
-          marginTop: "14px",
-        }}
-      >
+      <div className="grid-2col-canary" style={{ marginTop: "14px" }}>
         {/* Receipts log */}
         <Card>
           <CardHeader

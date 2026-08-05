@@ -279,6 +279,41 @@ export async function createExpectation(
   return { error: null };
 }
 
+export async function deactivateExpectation(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const expectationId = String(formData.get("expectationId") ?? "");
+  if (!expectationId) return { error: "Expectation ID is required." };
+
+  // Ownership check: expectation → workflow → client → accountId.
+  const expectation = await prisma.canaryExpectation.findFirst({
+    where: {
+      id: expectationId,
+      workflow: { client: { accountId: account.id } },
+    },
+    select: { id: true, workflowId: true },
+  });
+  if (!expectation) return { error: "Expectation not found." };
+
+  await prisma.canaryExpectation.update({
+    where: { id: expectation.id },
+    data: { active: false },
+  });
+
+  logger.info("canary_expectation.deactivated", {
+    accountId: account.id,
+    workflowId: expectation.workflowId,
+    expectationId: expectation.id,
+  });
+  revalidatePath("/dashboard");
+  return { error: null };
+}
+
 export async function simulateFailure(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");

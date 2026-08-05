@@ -15,27 +15,44 @@ export function EnableCanaryForm({ workflowId }: { workflowId: string }) {
         type="submit"
         disabled={pending}
         style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "9px",
-          letterSpacing: ".08em",
-          textTransform: "uppercase",
-          color: "var(--pine)",
-          background: "none",
-          border: "none",
+          display: "block",
+          width: "100%",
+          fontSize: "13px",
+          fontWeight: 600,
+          borderRadius: "8px",
+          padding: "9px 14px",
+          border: "1px solid var(--border-2)",
+          background: "#fff",
+          color: "var(--t2)",
+          boxShadow: "var(--sh)",
           cursor: pending ? "default" : "pointer",
-          padding: 0,
-          opacity: pending ? 0.5 : 1,
+          opacity: pending ? 0.6 : 1,
+          textAlign: "center",
         }}
       >
-        {pending ? "enabling…" : "enable canary →"}
+        {pending ? "Enabling…" : "Enable canary"}
       </button>
+      <p
+        style={{
+          marginTop: "8px",
+          fontSize: "12px",
+          color: "var(--t3)",
+          lineHeight: "1.5",
+        }}
+      >
+        Adds a silent recipient address that verifies real sends arrive.
+      </p>
       {state.error && (
-        <span
+        <p
           role="alert"
-          style={{ fontFamily: "var(--font-mono)", fontSize: "9px", color: "var(--amber-deep)", marginLeft: "8px" }}
+          style={{
+            marginTop: "6px",
+            fontSize: "12px",
+            color: "var(--amber-tx)",
+          }}
         >
           {state.error}
-        </span>
+        </p>
       )}
     </form>
   );

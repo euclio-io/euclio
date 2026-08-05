@@ -101,13 +101,15 @@ export function SnippetTabs({
 
   return (
     <>
-      {/* Tabs */}
+      {/* Tabs — horizontal scroll on mobile */}
       <div
         style={{
           display: "flex",
-          gap: "24px",
-          borderBottom: "1px solid var(--hair)",
-          marginBottom: "0",
+          gap: "20px",
+          borderBottom: "1px solid var(--border)",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
         }}
       >
         {TAB_LABELS.map(({ id, label }) => (
@@ -115,10 +117,10 @@ export function SnippetTabs({
             key={id}
             onClick={() => setActiveTab(id)}
             style={{
-              fontFamily: "var(--font-mono)",
+              fontFamily: "var(--mono)",
               fontSize: "10.5px",
               letterSpacing: ".04em",
-              color: activeTab === id ? "var(--ink)" : "var(--ink-2)",
+              color: activeTab === id ? "var(--t1)" : "var(--t3)",
               padding: "0 0 10px",
               border: "none",
               borderBottom: activeTab === id
@@ -127,6 +129,8 @@ export function SnippetTabs({
               marginBottom: "-1px",
               background: "none",
               cursor: "pointer",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
             }}
           >
             {label}
@@ -137,10 +141,10 @@ export function SnippetTabs({
       {/* Snippet card */}
       <div
         style={{
-          background: "var(--lift)",
-          border: "1px solid var(--hair-2)",
+          background: "var(--subtle)",
+          border: "1px solid var(--border)",
           borderRadius: "10px",
-          boxShadow: "0 10px 36px -20px rgba(30,54,43,.28)",
+          boxShadow: "var(--sh)",
           marginTop: "16px",
           overflow: "hidden",
         }}
@@ -149,7 +153,7 @@ export function SnippetTabs({
           style={{
             margin: 0,
             padding: "16px 20px",
-            fontFamily: "var(--font-mono)",
+            fontFamily: "var(--mono)",
             fontSize: "11.5px",
             lineHeight: "1.7",
             color: "var(--pine)",
@@ -165,37 +169,40 @@ export function SnippetTabs({
             alignItems: "center",
             justifyContent: "space-between",
             gap: "14px",
-            background: "var(--paper)",
-            borderTop: "1px solid var(--hair)",
+            background: "var(--canvas)",
+            borderTop: "1px solid var(--border)",
             padding: "12px 20px",
           }}
         >
           <span
             style={{
-              fontFamily: "var(--font-mono)",
+              fontFamily: "var(--mono)",
               fontSize: "9px",
               letterSpacing: ".06em",
               textTransform: "uppercase",
-              color: "var(--ink-2)",
+              color: "var(--t3)",
             }}
           >
             {activeTab === "Node" || activeTab === "Python" || activeTab === "curl"
               ? "zero dependencies · the request is the whole footprint"
               : "platform integration · no SDK required"}
           </span>
+          {/* Copy — primary filled button (the one filled primary per screen) */}
           <button
             onClick={handleCopy}
             style={{
-              fontFamily: "var(--font-mono)",
+              fontFamily: "var(--mono)",
               fontSize: "10px",
               letterSpacing: ".08em",
               textTransform: "uppercase",
-              borderRadius: "999px",
+              borderRadius: "8px",
               padding: "8px 16px",
-              border: "none",
+              border: "1px solid var(--pine)",
               background: "var(--pine)",
-              color: "var(--rail-text)",
+              color: "#fff",
               cursor: "pointer",
+              boxShadow: "var(--sh)",
+              minHeight: "44px",
             }}
           >
             {copied ? "Copied ✓" : "Copy"}

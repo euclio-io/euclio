@@ -236,9 +236,9 @@ export default async function DashboardPage() {
   }).format(new Date());
 
   return (
-    <div style={{ padding: "28px 32px 40px", minWidth: 0 }}>
+    <div className="page-pad">
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
         <div>
           <div
             style={{ fontSize: "20px", fontWeight: 600, letterSpacing: "-.01em" }}
@@ -354,14 +354,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "14px",
-          margin: "20px 0 16px",
-        }}
-      >
+      <div className="stat-grid">
         {[
           { k: "Clients", v: clients.length },
           { k: "Workflows watched", v: totalWorkflows },
@@ -396,13 +389,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Two-column grid ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.62fr 1fr",
-          gap: "14px",
-        }}
-      >
+      <div className="grid-2col-home">
         {/* ── Left: The book ── */}
         <Card>
           <CardHeader

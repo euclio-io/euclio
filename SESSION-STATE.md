@@ -1,7 +1,7 @@
 # Euclio — Session State
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`.
-> Last reconciled: 2026-08-05 (timezone-correctness session — isWithinWindow unified, lib/time.ts, America/Toronto set).
+> Last reconciled: 2026-08-05 (UI improvement session — canary CTA, mobile pass, expectation UI rewrite, incident page reorder).
 
 ## Milestone summary
 
@@ -16,6 +16,12 @@
 - **UI shell + design system** — DONE. `app/dashboard/layout.tsx`: 64px dark rail sidebar with Euclio logo, client avatar buttons (initials + amber dot on open incident), gear placeholder, user avatar. All dashboard pages now live inside the shell. Home page (`/dashboard`) rebuilt to match `euclio-home-view.html`: pulse line (amber open-incident summary or green all-clear), figures row (clients/workflows/check-ins/incidents), compact client rows with tick/status/receipts/chevron, sorted by attention (open incidents first). Workflow setup page at `/dashboard/clients/[id]/workflows/[wfId]`: breadcrumb, snippet tabs (n8n/Make/Zapier/Node/Python/curl/Coding agent) with copy button, /fail section, simulate-failure, listening status, canary config. Ledger upgraded to match `euclio-answer-view.html`: two-column events+receipts grid inside each entry, "your read" slot, compose/detail actions. `AddClientForm`, `AddWorkflowForm` rewritten with design system styles. 130/130 tests pass. TypeScript clean.
 - **UI rebuild — spec-faithful pages** — DONE. Six new HTML spec files adopted as visual contract. `lib/status.ts`: pure `deriveStatus()` function — single source of truth for all worded chips (`OPEN · 28 MIN`, `RESOLVED · 9:41am`, `QUIET · 41 DAYS`). `components/ui/`: `Chip`, `Panel`+`PanelHeader`, `ImpactStrip`, `Timeline` shared components. Home page rebuilt to two-column grid: "The book" panel (table with chips, search/sort header, footer) + "Needs attention" loud panel (amber left border, shadow) + "Latest entries" panel. Client ledger rebuilt: month bar (year + pills with amber tick dots), Register panel (compact incident entries with amber left border + shadow, quiet-run rows, canary event rows), Workflows panel (chip + canary on/off), Record panel. Incident page rebuilt: ImpactStrip (outstanding count green/amber crisis switch), Summary panel (facts + "Your read" slot + Compose button), Events timeline (connected spine), Receipts panel, Diagnostics panel (collapsed by default — ONLY place errorText renders). Canary page at `/dashboard/clients/[id]/workflows/[wfId]/canary`: streak ImpactStrip, receipts log, daily register, incidents list. Rail: "+" add-client button + SignOutButton (↪) added. 130/130 tests pass. TypeScript clean.
 - **v6 design system rebuild** — DONE. All dashboard pages migrated from old `--paper/--lift/--ink/--hair/--font-serif/--font-mono` tokens to the v6 token set (`--canvas/--page-bg/--pine/--t1/--t2/--t3/--border/--border-2/--subtle/--amber/--amber-tx/--amber-bg/--amber-bd/--green/--green-tx/--green-bg/--green-bd/--gray/--gray-tx/--gray-bg/--gray-bd/--sh/--mono`). `globals.css` + `app/layout.tsx` updated with Inter + JetBrains Mono fonts and full token palette. `lib/status.ts` `deriveStatus()` updated to return plain-English chips (`Open · 28 min`, `Resolved · 9:41 am`, `Quiet · today`). New shared components: `components/ui/Badge.tsx` (worded status pill with 6px dot), `components/ui/Card.tsx` + `CardHeader` + `ChevronRight` (replaces Panel/PanelHeader), `components/ui/ImpactStrip.tsx` (updated to v6 tokens), `components/ui/Timeline.tsx` (updated to v6 tokens). All pages rebuilt: dashboard layout (rail), home page, client ledger, incident detail, workflow setup, diagnostics panel, canary page. Old `Chip.tsx` and `Panel.tsx` retained for reference but no longer imported by any page. 130/130 tests pass. TypeScript clean.
+- **UI improvement session** — DONE (2026-08-05). Four workstreams:
+  1. **Canary CTA**: `enable-canary-form.tsx` — "enable canary →" text link replaced with a full-width secondary button ("Enable canary" / "Enabling…"), 12px helper line below. Stays secondary; Copy is the one filled primary on the setup screen.
+  2. **Mobile pass**: `globals.css` — responsive CSS classes added (`.dash-shell`, `.dash-rail`, `.dash-topbar`, `.page-pad`, `.grid-2col-*`, `.stat-grid`, `.month-bar`, `.table-scroll`). `app/dashboard/layout.tsx` — same component, responsive variant: desktop shows 64px pine rail; mobile (<768px) shows sticky top bar (logo | scrollable client monogram strip with amber dots | avatar). All dashboard pages updated to use CSS classes. Grids collapse to single column on mobile; home grid uses `flex-direction: column-reverse` so Needs-attention stacks above The book. Stat grids go 2×2. Touch targets ≥44px. No horizontal page scroll. **Note: mobile has no HTML spec files — the code is the mobile reference.**
+  3. **Expectation UI rewrite**: `add-expectation-form.tsx` — rebuilt as a proper section with "Expectations" header + gray count badge, empty state copy, existing expectations as rows (worded rule, ±N min window, explicit timezone from `effectiveTimezone`), remove control (calls `deactivateExpectation` server action). Add form with labeled fields: Frequency select, "By" time input labeled with effective timezone, Window minutes input, "Add expectation" secondary button. `deactivateExpectation` server action added to `actions.ts` (ownership-scoped). Workflow setup page wired to pass `expectations` + `timezone` props.
+  4. **Incident page reorder**: `app/dashboard/incidents/[id]/page.tsx` — new order: ImpactStrip → Events+Receipts (two-column, single column on mobile) → Summary full-width → Diagnostics (collapsed, last). `aider_project_context/euclio-incident-view.html` spec updated to match. All invariants preserved: compose blocked until "your read" filled; errorText only in DiagnosticsPanel; ImpactStrip crisis switch untouched.
+  161/161 tests pass. Build green.
 
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
@@ -48,6 +54,8 @@
 - [x] **M5: Incident detail page** — done. `/dashboard/incidents/[id]`, facts lines, event timeline, diagnostic panel, resolve form, simulate-failure.
 - [x] **M5: Design system** — done. Spectral/Instrument Sans/IBM Plex Mono + paper/lift/rail/ink/amber/green/hair tokens adopted globally in `globals.css` + `layout.tsx`.
 - [x] **UI shell** — done. 64px rail sidebar, home page, workflow setup page, ledger two-column grid. All pages match design specs.
+- [ ] **Settings UI for timezone** — new accounts default to UTC until set manually. Add a settings page with a timezone select field.
+- [ ] **Mobile visual verification** — mobile has no HTML spec files; the code is the mobile reference. Verify all dashboard pages at 390px and 768px in a real browser before next deploy.
 
 ## Gotchas
 
@@ -56,6 +64,7 @@
 - Incident pages show "Canary not yet live for this workflow" for incidents whose gap accounting predates canary enablement (`sendsDue = 0`) — this is the honest empty state, not a bug; new incidents populate normally.
 - Occurrence math lives in exactly one module (`lib/canary-gap.ts` — `isWithinWindow` + `computeGap`); never duplicate it in route files or workers.
 - `Account.timezone` defaults to `"UTC"` until set — new accounts will see UTC-shifted times until a settings UI field exists (TODO: add settings page).
+- **Mobile has no HTML spec files** — the code is the mobile reference. CSS classes in `globals.css` (`.dash-shell`, `.dash-rail`, `.dash-topbar`, `.page-pad`, `.grid-2col-*`, `.stat-grid`, `.month-bar`) are the single source of truth for responsive layout.
 
 ## Fixes applied this session (sanity pass)
 
@@ -83,5 +92,7 @@
 - `prisma migrate status` → up to date against Neon. ✓
 - `lib/facts.ts` → pure function, no DB imports, no errorText reference in code. ✓
 - `lib/__tests__/facts.test.ts` → 102 tests, all pass in isolation. ✓
-- `app/dashboard/layout.tsx` → 64px rail sidebar, client avatars, logo, user avatar. ✓
-- `app/dashboard/clients/[id]/workflows/[wfId]/page.tsx` → snippet tabs, canary config, listening status. ✓
+- `app/dashboard/layout.tsx` → responsive shell: 64px rail (desktop) + sticky top bar (mobile). ✓
+- `app/dashboard/clients/[id]/workflows/[wfId]/page.tsx` → snippet tabs, canary config, listening status, AddExpectationForm with expectations+timezone props. ✓
+- `app/dashboard/incidents/[id]/page.tsx` → order: ImpactStrip → Events+Receipts grid → Summary → Diagnostics. ✓
+- `aider_project_context/euclio-incident-view.html` → matches new page order. ✓
