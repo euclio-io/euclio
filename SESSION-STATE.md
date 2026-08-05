@@ -19,6 +19,8 @@
 
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
+> **Canary inbound VERIFIED live 2026-08-05.** in.euclio.io MX → Resend inbound receiving → Svix webhook → unmatched receipt rendered. Mail topology: root `@euclio.io` = ImprovMX → founder Gmail; `send` / `send.in` = Resend outbound; `in` = Resend inbound (canary). Canary address case bug found and fixed same session (see gotchas below).
+
 > Full milestone detail archived in `docs/session-history.md`.
 
 ## Open threads / decisions needed
@@ -42,6 +44,12 @@
 - [x] **M5: Incident detail page** — done. `/dashboard/incidents/[id]`, facts lines, event timeline, diagnostic panel, resolve form, simulate-failure.
 - [x] **M5: Design system** — done. Spectral/Instrument Sans/IBM Plex Mono + paper/lift/rail/ink/amber/green/hair tokens adopted globally in `globals.css` + `layout.tsx`.
 - [x] **UI shell** — done. 64px rail sidebar, home page, workflow setup page, ledger two-column grid. All pages match design specs.
+
+## Gotchas
+
+- Canary addresses MUST be lowercase at generation; inbound lookup normalizes with `toLowerCase()` — regression-tested as of 2026-08-05 (`lib/__tests__/token.test.ts`, `app/api/canary/inbound/__tests__/matching.test.ts`).
+- The inbound no-leak design (silent 200 on unmatched) can mask matching bugs; check Railway web logs for `canary.unmatched` (now includes `toCount`, `toDomainsDistinct`, `anyMatchesCanaryDomain`) when receipts are missing.
+- Incident pages show "Canary not yet live for this workflow" for incidents whose gap accounting predates canary enablement (`sendsDue = 0`) — this is the honest empty state, not a bug; new incidents populate normally.
 
 ## Fixes applied this session (sanity pass)
 

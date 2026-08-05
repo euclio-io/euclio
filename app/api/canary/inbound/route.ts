@@ -80,8 +80,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (!workflow) {
-    // Unmatched — log and return 200 (never 404; don't leak address existence)
-    logger.info("canary.unmatched", {});
+    // Unmatched — log routing metadata and return 200 (never 404; don't leak address existence).
+    // Log domain parts only — never the local part, subject, or body (data principle §7).
+    // This metadata distinguishes "probe traffic to a random domain" from "my own addresses
+    // don't match" when debugging missing receipts in Railway web logs.
+    const canaryDomain = process.env.CANARY_DOMAIN ?? "in.euclio.io";
+    const toDomains = toAddresses.map((a) => {
+      const at = a.lastIndexOf("@");
+      return at >= 0 ? a.slice(at + 1).toLowerCase().trim() : "";
+    });
+    logger.info("canary.unmatched", {
+      toCount: toAddresses.length,
+      toDomainsDistinct: [...new Set(toDomains)],
+      anyMatchesCanaryDomain: toDomains.some((d) => d === canaryDomain),
+    });
     return NextResponse.json({ ok: true });
   }
 
