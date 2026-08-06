@@ -1,7 +1,23 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 import "./globals.css";
+
+// Euclio product voice: no exclamation marks, no "Welcome!", sentence case.
+// Keys: signIn.start.subtitle / signUp.start.subtitle (Clerk v7 localization API).
+const clerkLocalization = {
+  signIn: {
+    start: {
+      subtitle: "Sign in to your ledger.",
+    },
+  },
+  signUp: {
+    start: {
+      subtitle: "Start your ledger.",
+    },
+  },
+};
 
 /**
  * Euclio design system — v6 "professional portal".
@@ -31,6 +47,8 @@ export default function RootLayout({
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
+      appearance={clerkAppearance}
+      localization={clerkLocalization}
     >
       <html
         lang="en"

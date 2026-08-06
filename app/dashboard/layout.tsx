@@ -27,7 +27,10 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { userId } = await auth();
-  if (!userId) redirect("https://euclio.io");
+  // Unauthenticated direct hit to /dashboard/* → send to sign-in.
+  // Sign-out redirect (→ euclio.io) is handled by <SignOutButton redirectUrl>
+  // in the rail/top-bar below — it never passes through this guard.
+  if (!userId) redirect("/sign-in");
 
   const account = await getOrCreateAccountForCurrentUser();
 
