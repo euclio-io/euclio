@@ -30,11 +30,12 @@ type WatcherWorkflow = Prisma.WorkflowGetPayload<{
   };
 }>;
 
-export async function reconcile(now: Date = new Date()): Promise<void> {
+export async function reconcile(now: Date = new Date(), accountId?: string): Promise<void> {
   const workflows = await prisma.workflow.findMany({
     where: {
       archivedAt: null,
       status: { not: "paused" },
+      ...(accountId ? { client: { accountId } } : {}),
     },
     include: {
       incidents: {

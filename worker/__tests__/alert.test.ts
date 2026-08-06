@@ -89,7 +89,7 @@ describe("M4 alert email", () => {
     });
 
     // First tick: incident opens, alert sent.
-    await reconcile(now);
+    await reconcile(now, accountId);
     expect(mockSendAlert).toHaveBeenCalledTimes(1);
 
     const incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
@@ -97,7 +97,7 @@ describe("M4 alert email", () => {
     expect(incidents[0].alertedAt).not.toBeNull();
 
     // Second tick: incident already open and alerted — no new alert.
-    await reconcile(new Date(now.getTime() + 60_000));
+    await reconcile(new Date(now.getTime() + 60_000), accountId);
     expect(mockSendAlert).toHaveBeenCalledTimes(1); // still 1, not 2
   });
 
@@ -128,13 +128,13 @@ describe("M4 alert email", () => {
     });
 
     // First tick: alert fails.
-    await reconcile(now);
+    await reconcile(now, accountId);
     expect(mockSendAlert).toHaveBeenCalledTimes(1);
     const afterFirst = await prisma.incident.findUnique({ where: { id: incident.id } });
     expect(afterFirst?.alertedAt).toBeNull(); // still null — send failed
 
     // Second tick: alert succeeds.
-    await reconcile(new Date(now.getTime() + 60_000));
+    await reconcile(new Date(now.getTime() + 60_000), accountId);
     expect(mockSendAlert).toHaveBeenCalledTimes(2);
     const afterSecond = await prisma.incident.findUnique({ where: { id: incident.id } });
     expect(afterSecond?.alertedAt).not.toBeNull(); // stamped now
@@ -165,7 +165,7 @@ describe("M4 alert email", () => {
       data: { lastPingAt: recentPing, status: WorkflowStatus.healthy },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     // No new incident opened, no alert sent.
     const incidents = await prisma.incident.findMany({
@@ -197,7 +197,7 @@ describe("M4 alert email", () => {
     });
 
     // Should not throw even though the first alert throws.
-    await expect(reconcile(now)).resolves.not.toThrow();
+    await expect(reconcile(now, accountId)).resolves.not.toThrow();
 
     // Both workflows should have incidents opened.
     const incidents1 = await prisma.incident.findMany({ where: { workflowId: workflow1.id } });
@@ -220,7 +220,7 @@ describe("M4 alert email", () => {
       data: { lastPingAt: pastPing },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
     expect(incidents).toHaveLength(1);

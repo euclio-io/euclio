@@ -67,7 +67,7 @@ describe("watcher reconciliation", () => {
       data: { lastPingAt: recentPing, status: WorkflowStatus.healthy },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const updated = await prisma.workflow.findUnique({ where: { id: workflow.id } });
     expect(updated?.status).toBe(WorkflowStatus.healthy);
@@ -87,7 +87,7 @@ describe("watcher reconciliation", () => {
       data: { lastPingAt: pastPing },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
     expect(incidents).toHaveLength(0);
@@ -104,7 +104,7 @@ describe("watcher reconciliation", () => {
       data: { lastPingAt: pastPing },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const updated = await prisma.workflow.findUnique({ where: { id: workflow.id } });
     expect(updated?.status).toBe(WorkflowStatus.down);
@@ -135,7 +135,7 @@ describe("watcher reconciliation", () => {
       data: { lastPingAt: recentPing, status: WorkflowStatus.down },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const updated = await prisma.workflow.findUnique({ where: { id: workflow.id } });
     expect(updated?.status).toBe(WorkflowStatus.healthy);
@@ -156,7 +156,7 @@ describe("watcher reconciliation", () => {
       data: { lastPingAt: recentPing },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const updated = await prisma.workflow.findUnique({ where: { id: workflow.id } });
     expect(updated?.status).toBe(WorkflowStatus.healthy);
@@ -184,7 +184,7 @@ describe("watcher reconciliation", () => {
       },
     });
 
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     const updatedIncident = await prisma.incident.findUnique({ where: { id: incident.id } });
     expect(updatedIncident?.status).toBe(IncidentStatus.open);
@@ -200,7 +200,7 @@ describe("watcher reconciliation", () => {
       where: { id: workflow.id },
       data: { lastPingAt: pastPing },
     });
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     let incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
     expect(incidents).toHaveLength(1);
@@ -212,7 +212,7 @@ describe("watcher reconciliation", () => {
       where: { id: workflow.id },
       data: { lastPingAt: recentPing },
     });
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
     expect(incidents[0].status).toBe(IncidentStatus.resolved);
@@ -222,7 +222,7 @@ describe("watcher reconciliation", () => {
       where: { id: workflow.id },
       data: { lastPingAt: pastPing },
     });
-    await reconcile(now);
+    await reconcile(now, accountId);
 
     incidents = await prisma.incident.findMany({ where: { workflowId: workflow.id } });
     expect(incidents).toHaveLength(2);
