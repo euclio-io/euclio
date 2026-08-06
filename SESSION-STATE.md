@@ -1,7 +1,7 @@
 # Euclio — Session State
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`.
-> Last reconciled: 2026-08-06 (evidence-direction docs reconciliation + full repo audit).
+> Last reconciled: 2026-08-06 (settings UI for timezone).
 
 ## Milestone summary
 
@@ -28,6 +28,7 @@
   4. **Incident page reorder**: `app/dashboard/incidents/[id]/page.tsx` — new order: ImpactStrip → Events+Receipts (two-column, single column on mobile) → Summary full-width → Diagnostics (collapsed, last). `aider_project_context/euclio-incident-view.html` spec updated to match. All invariants preserved: compose blocked until "your read" filled; errorText only in DiagnosticsPanel; ImpactStrip crisis switch untouched.
   161/161 tests pass. Build green.
 - **Evidence-direction docs reconciliation** — DONE (2026-08-06). `aider_project_context/Euclio_evidence_direction_addendum.md` (v2 decision record: evidence identity, Workflow→Run→Check→Ledger model, rejected items, deferred items + promotion triggers) and `aider_project_context/euclio-expectations-spec.md` (v2 setup-UX spec; discovery artifact for partner conversations) added. `CLAUDE.md`: two line edits only (header citation + one do-not-build line — see addendum §7). Deviation recorded (addendum §6): M5.2 stores gap counts on `Incident.sendsDue/sendsArrived`; `WorkflowDailyStat` + ping/receipt pruning deferred until row volume forces it, rollup lands in the same change as pruning. Landing repo: v2 copy shipped (thesis in hero, ✓ Answer Ready state, canary reframe, ledger nav) + GoatCounter script removed. No code changes in this repo. **Scope note: nothing in the addendum §4 trigger table is buildable without its trigger firing.**
+- **Settings UI for timezone** — DONE (2026-08-06). `app/dashboard/settings/page.tsx` (server component, reads `account.timezone`), `app/dashboard/settings/timezone-form.tsx` (client component, `useActionState`, curated IANA select, role="alert" error, role="status" saved confirmation), `app/dashboard/settings/actions.ts` (`saveTimezone` server action — ownership via `getOrCreateAccountForCurrentUser`, `Intl.DateTimeFormat` validation, `prisma.account.update` scoped to `account.id`). Rail gear icon in `app/dashboard/layout.tsx` wired as `<Link href="/dashboard/settings">` (was a bare SVG placeholder). No schema change — `Account.timezone String @default("UTC")` already existed. 5 new tests in `app/dashboard/settings/__tests__/settings-action.test.ts`. 267/267 tests pass. TypeScript clean.
 
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
@@ -60,7 +61,7 @@
 - [x] **M5: Incident detail page** — done. `/dashboard/incidents/[id]`, facts lines, event timeline, diagnostic panel, resolve form, simulate-failure.
 - [x] **M5: Design system** — done. Spectral/Instrument Sans/IBM Plex Mono + paper/lift/rail/ink/amber/green/hair tokens adopted globally in `globals.css` + `layout.tsx`.
 - [x] **UI shell** — done. 64px rail sidebar, home page, workflow setup page, ledger two-column grid. All pages match design specs.
-- [ ] **Settings UI for timezone** — new accounts default to UTC until set manually. Add a settings page with a timezone select field.
+- [x] ~~**Settings UI for timezone**~~ — DONE 2026-08-06. `/dashboard/settings` with IANA timezone select; `saveTimezone` server action; gear icon in rail wired as link. 267/267 tests pass.
 - [ ] **Sendable all-green status** (pre-partner gate, Principle 5 completion) — the all-clear is display-only today; build the compose/send path for a quiet-month update. See the gate list in `Euclio_evidence_direction_addendum.md` §8.
 - [ ] **Run the DoD acceptance test end to end, self-administered** — simulate a miss → email → incident facts → canary gap → answer a mock client question from the ledger in under a minute → compose blocked until the read is filled → public receipt opens. Log the result here.
 - [ ] **Smoke harness (optional insurance)** — `scripts/smoke.ts` against APP_URL; M0's informal item made real.
