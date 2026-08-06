@@ -314,6 +314,80 @@ export async function deactivateExpectation(
   return { error: null };
 }
 
+export async function createAllClearUpdate(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+  const account = await getOrCreateAccountForCurrentUser();
+
+  const clientId = String(formData.get("clientId") ?? "");
+  const bodyText = String(formData.get("bodyText") ?? "").trim();
+  const markSent = formData.get("markSent") === "1";
+  const coversFromRaw = String(formData.get("coversFrom") ?? "");
+  const coversToRaw = String(formData.get("coversTo") ?? "");
+
+  if (!clientId) return { error: "Client ID is required." };
+  if (!bodyText) return { error: "Note body is required." };
+  // Server-side guard: slot 2 must be non-empty (same rule as incident compose).
+  if (bodyText.length < 10) return { error: "Note is too short." };
+
+  // Ownership check: client must belong to this account.
+  const client = await prisma.client.findFirst({
+    where: { id: clientId, accountId: account.id, archivedAt: null },
+    select: { id: true },
+  });
+  if (!client) return { error: "Client not found." };
+
+  // Guard: no open incidents for this client (all-clear is only valid when quiet).
+  const openIncidentCount = await prisma.incident.count({
+    where: {
+      status: "open",
+      workflow: { clientId, client: { accountId: account.id } },
+    },
+  });
+  if (openIncidentCount > 0) {
+    return { error: "Cannot send an all-clear while incidents are open." };
+  }
+
+  // Look up the User row for authorUserId.
+  const user = await prisma.user.findFirst({
+    where: { clerkUserId: userId, accountId: account.id },
+    select: { id: true },
+  });
+  if (!user) return { error: "User not found." };
+
+  const slug = generatePublicSlug();
+  const now = new Date();
+  const coversFrom = coversFromRaw ? new Date(coversFromRaw) : null;
+  const coversTo = coversToRaw ? new Date(coversToRaw) : now;
+
+  const update = await prisma.clientUpdate.create({
+    data: {
+      accountId: account.id,
+      clientId: client.id,
+      authorUserId: user.id,
+      kind: "all_clear",
+      bodyText,
+      publicSlug: slug,
+      coversFrom,
+      coversTo,
+      sentAt: markSent ? now : null,
+    },
+    select: { id: true, publicSlug: true },
+  });
+
+  logger.info("client_update.all_clear.created", {
+    accountId: account.id,
+    clientId: client.id,
+    clientUpdateId: update.id,
+  });
+
+  revalidatePath(`/dashboard/clients/${clientId}`);
+  return { error: null, publicSlug: update.publicSlug };
+}
+
 export async function simulateFailure(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");

@@ -1,6 +1,6 @@
 # Euclio — project context for Claude Code
 
-Strategy docs live in `aider_project_context/`; `Euclio_master_reference.md` is the consolidated source of truth and `Euclio_canary_synthesis_addendum.md` is the decision record (schema deltas §6, packaging §11). This file is maintained ONLY here — the implementation plan points to it, never duplicates it. No code change may contradict a principle below; no strategy change exists until committed to the docs.
+Strategy docs live in `aider_project_context/`; `Euclio_master_reference.md` is the consolidated source of truth, `Euclio_canary_synthesis_addendum.md` is the decision record (schema deltas §6, packaging §11), and `Euclio_evidence_direction_addendum.md` is the v2 direction record (identity, evidence model, deferred items + triggers) — nothing in it is launch scope. This file is maintained ONLY here — the implementation plan points to it, never duplicates it. No code change may contradict a principle below; no strategy change exists until committed to the docs.
 
 ## What this is
 Euclio watches the automations a freelancer/small agency runs for their clients
@@ -125,6 +125,8 @@ Design system: Spectral/Instrument Sans/IBM Plex Mono on paper tokens, three sep
   the core loop (post-validation Layers 1–2, operator-side only)
 - any cold-email / outreach pipeline
 - anything placing Euclio in a workflow's run path
+- per-node workflow graphs, platform-API workflow watching, browser/Playwright
+  checks, open-tracking, PII variable matching (see evidence addendum §3)
 
 ## Stack
 Next.js (App Router, TS) as a long-running server on Railway (web + worker, one

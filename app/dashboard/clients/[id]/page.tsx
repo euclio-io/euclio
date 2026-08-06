@@ -9,6 +9,24 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardHeader, ChevronRight } from "@/components/ui/Card";
 import { AddWorkflowForm } from "@/app/dashboard/add-workflow-form";
 
+// SVG icon for all-clear compose button
+function AllClearIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 /**
  * Client ledger — matches euclio-client-view.html (v6 design system).
  *
@@ -253,6 +271,28 @@ export default async function ClientLedgerPage({
     },
   });
 
+  // All-clear updates for the active month
+  const allClearUpdates = await prisma.clientUpdate.findMany({
+    where: {
+      clientId,
+      accountId: account.id,
+      kind: "all_clear",
+      createdAt: { gte: activeMonthStart, lt: activeMonthEnd },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      publicSlug: true,
+      createdAt: true,
+      sentAt: true,
+    },
+  });
+
+  // Check if there are any open incidents (to show/hide the all-clear button)
+  const hasOpenIncidents = client.workflows.some((wf) =>
+    wf.incidents.some((inc) => inc.status === "open"),
+  );
+
   const workflowRows = client.workflows.map((wf) => {
     const inc = wf.incidents[0];
     const hasOpen = inc?.status === "open";
@@ -283,7 +323,7 @@ export default async function ClientLedgerPage({
     month: "long",
   }).format(activeMonthStart);
 
-  const totalEntries = activeMonthIncidents.length + canaryEvents.length;
+  const totalEntries = activeMonthIncidents.length + canaryEvents.length + allClearUpdates.length;
 
   return (
     <div className="page-pad">
@@ -373,6 +413,28 @@ export default async function ClientLedgerPage({
             </svg>
           </span>
           <AddWorkflowForm clientId={client.id} />
+          {!hasOpenIncidents && (
+            <Link
+              href={`/dashboard/clients/${clientId}/compose/all-clear`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "var(--green-tx)",
+                border: "1px solid var(--green-bd)",
+                borderRadius: "8px",
+                padding: "8px 12px",
+                background: "var(--green-bg)",
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <AllClearIcon />
+              Compose all-clear
+            </Link>
+          )}
         </div>
       </div>
 
@@ -745,6 +807,58 @@ export default async function ClientLedgerPage({
                     <ChevronRight />
                   </span>
                 </div>
+              ))}
+
+              {/* All-clear update rows */}
+              {allClearUpdates.map((ac) => (
+                <Link
+                  key={ac.id}
+                  href={`/u/${ac.publicSlug}`}
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "70px 1fr auto 24px",
+                      gap: "14px",
+                      alignItems: "center",
+                      padding: "14px 16px",
+                      borderBottom: "1px solid var(--border)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--t3)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {formatDate(ac.createdAt, tz)}
+                      <br />
+                      {formatTime(ac.createdAt, tz)}
+                    </span>
+                    <div>
+                      <span style={{ fontSize: "14.5px", fontWeight: 500 }}>
+                        All-clear sent
+                      </span>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "var(--t3)",
+                          marginTop: "2px",
+                          fontFamily: "var(--mono)",
+                        }}
+                      >
+                        /u/{ac.publicSlug}
+                      </div>
+                    </div>
+                    <Badge kind="quiet" label="All-clear" />
+                    <span style={{ color: "var(--t3)" }}>
+                      <ChevronRight />
+                    </span>
+                  </div>
+                </Link>
               ))}
 
               {/* Quiet-run row if no incidents but canary events exist */}

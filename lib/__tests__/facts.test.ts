@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { factsForIncident } from "../facts";
+import { factsForIncident, factsForQuietPeriod } from "../facts";
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
@@ -212,6 +212,134 @@ const BANNED_FIXTURES: Array<{ label: string; lines: string[] }> = [
 
 describe("banned words", () => {
   for (const fixture of BANNED_FIXTURES) {
+    for (const phrase of BANNED_PHRASES) {
+      it(`[${fixture.label}] never contains "${phrase}"`, () => {
+        const combined = fixture.lines.join(" ").toLowerCase();
+        expect(combined).not.toContain(phrase.toLowerCase());
+      });
+    }
+  }
+});
+
+// ── 9. factsForQuietPeriod ────────────────────────────────────────────────────
+
+// Jun 14, 2026 at 9:02am UTC — used as sinceDate
+const SINCE_DATE = new Date("2026-06-14T09:02:00.000Z");
+
+describe("factsForQuietPeriod — basic shape", () => {
+  it("returns one line when no canary receipts", () => {
+    const lines = factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42 });
+    expect(lines).toHaveLength(1);
+  });
+
+  it("first line contains check-in count", () => {
+    const lines = factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42 });
+    expect(lines[0]).toContain("42");
+  });
+
+  it("first line contains 'check-ins'", () => {
+    const lines = factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42 });
+    expect(lines[0]).toContain("check-ins");
+  });
+
+  it("singular: '1 check-in'", () => {
+    const lines = factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 1 });
+    expect(lines[0]).toContain("1 check-in");
+    expect(lines[0]).not.toContain("check-ins");
+  });
+
+  it("first line contains 'since'", () => {
+    const lines = factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42 });
+    expect(lines[0]).toContain("since");
+  });
+
+  it("first line contains the formatted date (UTC)", () => {
+    const lines = factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42, timezone: "UTC" });
+    // Jun 14, 2026
+    expect(lines[0]).toContain("Jun 14, 2026");
+  });
+
+  it("date respects timezone (America/New_York UTC-4 in June → Jun 14)", () => {
+    // 9:02am UTC = 5:02am EDT — still Jun 14
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 10,
+      timezone: "America/New_York",
+    });
+    expect(lines[0]).toContain("Jun 14, 2026");
+  });
+});
+
+describe("factsForQuietPeriod — canary line", () => {
+  it("returns two lines when receiptsVerified > 0", () => {
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 42,
+      receiptsVerified: 7,
+    });
+    expect(lines).toHaveLength(2);
+  });
+
+  it("second line contains receipts count", () => {
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 42,
+      receiptsVerified: 7,
+    });
+    expect(lines[1]).toContain("7");
+  });
+
+  it("second line contains 'verified at the canary'", () => {
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 42,
+      receiptsVerified: 7,
+    });
+    expect(lines[1]).toContain("verified at the canary");
+  });
+
+  it("singular: '1 send verified at the canary'", () => {
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 5,
+      receiptsVerified: 1,
+    });
+    expect(lines[1]).toContain("1 send verified at the canary");
+    expect(lines[1]).not.toContain("sends");
+  });
+
+  it("returns one line when receiptsVerified is 0", () => {
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 42,
+      receiptsVerified: 0,
+    });
+    expect(lines).toHaveLength(1);
+  });
+
+  it("returns one line when receiptsVerified is undefined", () => {
+    const lines = factsForQuietPeriod({
+      sinceDate: SINCE_DATE,
+      checkinCount: 42,
+    });
+    expect(lines).toHaveLength(1);
+  });
+});
+
+// Banned words for factsForQuietPeriod — same list, all fixtures
+const QUIET_BANNED_FIXTURES: Array<{ label: string; lines: string[] }> = [
+  {
+    label: "quiet no canary",
+    lines: factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42 }),
+  },
+  {
+    label: "quiet with canary",
+    lines: factsForQuietPeriod({ sinceDate: SINCE_DATE, checkinCount: 42, receiptsVerified: 7 }),
+  },
+];
+
+describe("banned words — factsForQuietPeriod", () => {
+  for (const fixture of QUIET_BANNED_FIXTURES) {
     for (const phrase of BANNED_PHRASES) {
       it(`[${fixture.label}] never contains "${phrase}"`, () => {
         const combined = fixture.lines.join(" ").toLowerCase();

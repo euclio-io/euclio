@@ -1,7 +1,7 @@
 # Euclio — Session State
 
 > Reconciliation log for resuming across machines/sessions. Read after `CLAUDE.md`.
-> Last reconciled: 2026-08-05 (Clerk auth branding + auth-flow fix session).
+> Last reconciled: 2026-08-06 (evidence-direction docs reconciliation + full repo audit).
 
 ## Milestone summary
 
@@ -27,6 +27,7 @@
   3. **Expectation UI rewrite**: `add-expectation-form.tsx` — rebuilt as a proper section with "Expectations" header + gray count badge, empty state copy, existing expectations as rows (worded rule, ±N min window, explicit timezone from `effectiveTimezone`), remove control (calls `deactivateExpectation` server action). Add form with labeled fields: Frequency select, "By" time input labeled with effective timezone, Window minutes input, "Add expectation" secondary button. `deactivateExpectation` server action added to `actions.ts` (ownership-scoped). Workflow setup page wired to pass `expectations` + `timezone` props.
   4. **Incident page reorder**: `app/dashboard/incidents/[id]/page.tsx` — new order: ImpactStrip → Events+Receipts (two-column, single column on mobile) → Summary full-width → Diagnostics (collapsed, last). `aider_project_context/euclio-incident-view.html` spec updated to match. All invariants preserved: compose blocked until "your read" filled; errorText only in DiagnosticsPanel; ImpactStrip crisis switch untouched.
   161/161 tests pass. Build green.
+- **Evidence-direction docs reconciliation** — DONE (2026-08-06). `aider_project_context/Euclio_evidence_direction_addendum.md` (v2 decision record: evidence identity, Workflow→Run→Check→Ledger model, rejected items, deferred items + promotion triggers) and `aider_project_context/euclio-expectations-spec.md` (v2 setup-UX spec; discovery artifact for partner conversations) added. `CLAUDE.md`: two line edits only (header citation + one do-not-build line — see addendum §7). Deviation recorded (addendum §6): M5.2 stores gap counts on `Incident.sendsDue/sendsArrived`; `WorkflowDailyStat` + ping/receipt pruning deferred until row volume forces it, rollup lands in the same change as pruning. Landing repo: v2 copy shipped (thesis in hero, ✓ Answer Ready state, canary reframe, ledger nav) + GoatCounter script removed. No code changes in this repo. **Scope note: nothing in the addendum §4 trigger table is buildable without its trigger firing.**
 
 > **Step 0 — M4 Railway verification:** VERIFIED 2026-08-03. Fired `/fail` → one email arrived at sergiolombana101@gmail.com (subject: "reported a failure at…"). Resolved incident, ran Simulate failure → one "missed a check-in" email arrived after watcher tick (~2 min). Both shapes confirmed. Resend domain `euclio.io` verified (Namecheap DNS). `RESEND_FROM_ADDRESS` and `APP_URL` set in Railway on both web and worker services.
 
@@ -43,8 +44,8 @@
 - [x] ~~**Step 0 — M4 Railway live verification**~~ — VERIFIED 2026-08-03. Both email shapes confirmed live.
 - [x] ~~**RESEND_FROM_ADDRESS**~~ — set in Railway (web + worker). `euclio.io` domain verified in Resend.
 - [x] ~~**APP_URL**~~ — set in Railway (web + worker).
-- [ ] **Clerk PRODUCTION instance** (before real launch): current keys are a Clerk DEV instance. Needs own keys + custom Google OAuth credentials in Railway env.
-- [ ] **Rebrand Google OAuth consent → "Euclio"** (deferred to production-instance setup).
+- [x] ~~**Clerk PRODUCTION instance**~~ — DONE 2026-08-06 (production keys plugged into Railway).
+- [ ] **Verify Google OAuth consent screen shows "Euclio"** — the rebrand was tied to production-instance setup; confirm it happened, otherwise do it now.
 - [ ] **Minor — pg SSL mode warning:** `sslmode=require` semantics change in pg v9. No action now; revisit if pg is bumped.
 - [ ] **Multi-machine onboarding bootstrap** (still open): manual Railway CLI + `railway variables` pull works but isn't scripted. Worth a bootstrap script before a third machine needs onboarding.
 - [ ] **alert.test.ts test #4 cross-file flake**: when the full suite runs, test #4 ("Throwing mailer: reconcile loop continues") occasionally gets 2 incidents instead of 1 for workflow1 because `reconcile()` processes ALL workflows in the DB and picks up data from other test files. Passes in isolation (`npm test -- worker/__tests__/alert.test.ts`). Fix: scope the test's `reconcile()` call to only the test's own workflows, or add a `beforeEach` that deletes all workflows outside the test account. Low priority — doesn't affect correctness of the watcher logic.
@@ -60,6 +61,9 @@
 - [x] **M5: Design system** — done. Spectral/Instrument Sans/IBM Plex Mono + paper/lift/rail/ink/amber/green/hair tokens adopted globally in `globals.css` + `layout.tsx`.
 - [x] **UI shell** — done. 64px rail sidebar, home page, workflow setup page, ledger two-column grid. All pages match design specs.
 - [ ] **Settings UI for timezone** — new accounts default to UTC until set manually. Add a settings page with a timezone select field.
+- [ ] **Sendable all-green status** (pre-partner gate, Principle 5 completion) — the all-clear is display-only today; build the compose/send path for a quiet-month update. See the gate list in `Euclio_evidence_direction_addendum.md` §8.
+- [ ] **Run the DoD acceptance test end to end, self-administered** — simulate a miss → email → incident facts → canary gap → answer a mock client question from the ledger in under a minute → compose blocked until the read is filled → public receipt opens. Log the result here.
+- [ ] **Smoke harness (optional insurance)** — `scripts/smoke.ts` against APP_URL; M0's informal item made real.
 - [ ] **Mobile visual verification** — mobile has no HTML spec files; the code is the mobile reference. Verify all dashboard pages at 390px and 768px in a real browser before next deploy.
 
 ## Gotchas

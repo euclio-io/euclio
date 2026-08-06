@@ -15,6 +15,9 @@
  * Resumed line (when resolvedAt is provided):
  *   "Back at 9:14am · 12 min"
  *
+ * Quiet-period shape (factsForQuietPeriod):
+ *   "N check-ins since <date>" (+ optional canary line)
+ *
  * Time format: h:mma in the supplied timezone (default UTC).
  * Duration: "N min" for < 60 min, "Nh Nm" or "Nh" for ≥ 60 min.
  */
@@ -56,7 +59,63 @@ export function factsForIncident(
   return lines;
 }
 
+/**
+ * Input for factsForQuietPeriod.
+ *
+ * @param sinceDate       Start of the quiet period (last resolved incident, or first ping).
+ * @param checkinCount    Number of check-ins (pings) during the period.
+ * @param receiptsVerified  Number of canary receipts verified (omit or 0 = canary not enabled).
+ * @param timezone        IANA timezone string (default "UTC").
+ */
+export interface QuietPeriodInput {
+  sinceDate: Date;
+  checkinCount: number;
+  receiptsVerified?: number;
+  timezone?: string;
+}
+
+/**
+ * Generate observation strings for a quiet period (all-clear).
+ *
+ * Observational language only — no severity, no inference, no reassurance.
+ * Returns 1–2 lines:
+ *   Line 1: "N check-ins since <date>"
+ *   Line 2 (canary enabled): "N sends verified at the canary"
+ *
+ * @param input  QuietPeriodInput
+ * @returns      Array of 1–2 observation strings.
+ */
+export function factsForQuietPeriod(input: QuietPeriodInput): string[] {
+  const { sinceDate, checkinCount, receiptsVerified, timezone = "UTC" } = input;
+
+  const sinceDateStr = formatDate(sinceDate, timezone);
+  const lines: string[] = [
+    `${checkinCount} check-in${checkinCount === 1 ? "" : "s"} since ${sinceDateStr}`,
+  ];
+
+  if (receiptsVerified !== undefined && receiptsVerified > 0) {
+    lines.push(
+      `${receiptsVerified} send${receiptsVerified === 1 ? "" : "s"} verified at the canary`,
+    );
+  }
+
+  return lines;
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Format a Date as "Mon D, YYYY" in the given IANA timezone.
+ * Examples: "Jun 14, 2026"
+ */
+function formatDate(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
 
 /**
  * Format a Date as "h:mma" in the given IANA timezone.

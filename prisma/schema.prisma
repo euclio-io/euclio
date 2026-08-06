@@ -50,6 +50,11 @@ enum IncidentStatus {
   resolved
 }
 
+enum ClientUpdateKind {
+  incident   // composed from an incident
+  all_clear  // quiet-period all-clear (no open incidents)
+}
+
 // ---------------- tenant ----------------
 
 model Account {
@@ -189,17 +194,19 @@ model Note {
 // (what they chose to include/change). Compose/send flow lands at M5/M6; the table
 // exists now so that's never a migration.
 model ClientUpdate {
-  id           String    @id @default(cuid())
+  id           String           @id @default(cuid())
   accountId    String
   clientId     String
   authorUserId String
+  kind         ClientUpdateKind @default(incident) // incident or all_clear
+  incidentId   String?          // null for all_clear updates
   bodyText     String
-  publicSlug   String    @unique // stable, unguessable URL for the no-login page
+  publicSlug   String           @unique // stable, unguessable URL for the no-login page
   coversFrom   DateTime?
   coversTo     DateTime?
   sentAt       DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
   client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
