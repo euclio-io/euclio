@@ -8,6 +8,6 @@ export default async function Home() {
   if (userId) {
     redirect("/dashboard");
   } else {
-    redirect("https://euclio.io");
+    redirect("/sign-in");
   }
 }
