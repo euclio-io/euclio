@@ -10,6 +10,7 @@
     "build": "prisma generate && next build",
     "start": "next start -p ${PORT:-3000}",
     "worker": "tsx worker/index.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "lint": "eslint",
     "test": "vitest run"
   },

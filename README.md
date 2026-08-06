@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Smoke test
+
+`APP_URL=https://euclio-production.up.railway.app npm run smoke` — asserts `/api/health` returns 200; set `SMOKE_WORKFLOW_TOKEN` to also POST a ping and assert 2xx.
+
 ## Getting Started
 
 First, run the development server:

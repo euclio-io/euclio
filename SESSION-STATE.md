@@ -64,7 +64,7 @@
 - [x] ~~**Settings UI for timezone**~~ — DONE 2026-08-06. `/dashboard/settings` with IANA timezone select; `saveTimezone` server action; gear icon in rail wired as link. 267/267 tests pass.
 - [ ] **Sendable all-green status** (pre-partner gate, Principle 5 completion) — the all-clear is display-only today; build the compose/send path for a quiet-month update. See the gate list in `Euclio_evidence_direction_addendum.md` §8.
 - [ ] **Run the DoD acceptance test end to end, self-administered** — simulate a miss → email → incident facts → canary gap → answer a mock client question from the ledger in under a minute → compose blocked until the read is filled → public receipt opens. Log the result here.
-- [ ] **Smoke harness (optional insurance)** — `scripts/smoke.ts` against APP_URL; M0's informal item made real.
+- [x] ~~**Smoke harness**~~ — DONE 2026-08-06. `scripts/smoke.ts` (`npm run smoke`): asserts `/api/health` → 200; if `SMOKE_WORKFLOW_TOKEN` set, POSTs a ping and asserts 2xx, otherwise skips with a message. Zero new deps (Node 22 built-in fetch + tsx). One line in README.
 - [ ] **Mobile visual verification** — mobile has no HTML spec files; the code is the mobile reference. Verify all dashboard pages at 390px and 768px in a real browser before next deploy.
 
 ## Gotchas
