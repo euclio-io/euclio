@@ -58,6 +58,7 @@ export function ComposeForm({
       formData.set("incidentId", incidentId);
       formData.set("clientId", clientId);
       formData.set("bodyText", assembleBody());
+      formData.set("slot2", slot2); // structural guard — server rejects if empty
       formData.set("markSent", "1");
       const result = await createClientUpdate({ error: null }, formData);
       if (result.error) {

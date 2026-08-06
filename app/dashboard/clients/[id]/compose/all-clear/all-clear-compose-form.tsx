@@ -56,6 +56,7 @@ export function AllClearComposeForm({
       const formData = new FormData();
       formData.set("clientId", clientId);
       formData.set("bodyText", assembleBody());
+      formData.set("slot2", slot2); // structural guard — server rejects if empty
       formData.set("markSent", "1");
       formData.set("coversFrom", coversFrom);
       formData.set("coversTo", coversTo);

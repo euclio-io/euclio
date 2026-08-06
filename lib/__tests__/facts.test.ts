@@ -190,7 +190,10 @@ const BANNED_PHRASES = [
   "severity",
 ];
 
-// All combinations to test: both shapes × open/resolved
+// Jun 14, 2026 at 9:02am UTC — used as sinceDate for quiet-period fixtures
+const SINCE_DATE_FOR_BANNED = new Date("2026-06-14T09:02:00.000Z");
+
+// All combinations to test: both shapes × open/resolved + quiet-period shapes
 const BANNED_FIXTURES: Array<{ label: string; lines: string[] }> = [
   {
     label: "heartbeat open",
@@ -207,6 +210,19 @@ const BANNED_FIXTURES: Array<{ label: string; lines: string[] }> = [
   {
     label: "explicit_fail resolved",
     lines: factsForIncident(WORKFLOW, "explicit_fail", OPENED_AT, RESOLVED_12M),
+  },
+  // quiet-period shapes — FIX B: these must also pass the banned-words gate
+  {
+    label: "quiet no canary",
+    lines: factsForQuietPeriod({ sinceDate: SINCE_DATE_FOR_BANNED, checkinCount: 42 }),
+  },
+  {
+    label: "quiet with canary",
+    lines: factsForQuietPeriod({
+      sinceDate: SINCE_DATE_FOR_BANNED,
+      checkinCount: 42,
+      receiptsVerified: 7,
+    }),
   },
 ];
 

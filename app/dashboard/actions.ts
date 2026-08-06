@@ -152,18 +152,17 @@ export async function createClientUpdate(
   const incidentId = String(formData.get("incidentId") ?? "");
   const clientId = String(formData.get("clientId") ?? "");
   const bodyText = String(formData.get("bodyText") ?? "").trim();
+  // slot2 is posted separately so the server can enforce the mandatory-read rule
+  // structurally, regardless of how bodyText was assembled.
+  const slot2 = String(formData.get("slot2") ?? "").trim();
   const markSent = formData.get("markSent") === "1";
 
   if (!incidentId) return { error: "Incident ID is required." };
   if (!clientId) return { error: "Client ID is required." };
   if (!bodyText) return { error: "Note body is required." };
-
-  // Server-side guard: slot 2 (what it means for you) must be non-empty.
-  // The client enforces this too, but we enforce it here as the authoritative check.
-  // We detect an empty slot 2 by checking if the body is just the slot 1 prefill
-  // (i.e. only one paragraph). A body with only one paragraph means slot 2 was skipped.
-  // More robust: the client always sends the assembled body; we just require it's non-trivial.
-  if (bodyText.length < 10) return { error: "Note is too short." };
+  // Structural guard: slot 2 ("what it means for you") must be non-empty.
+  // The client enforces this too, but this is the authoritative server-side check.
+  if (!slot2) return { error: "Your read (slot 2) is required." };
 
   // Ownership check: incident → workflow → client → accountId.
   const incident = await prisma.incident.findFirst({
@@ -324,14 +323,18 @@ export async function createAllClearUpdate(
 
   const clientId = String(formData.get("clientId") ?? "");
   const bodyText = String(formData.get("bodyText") ?? "").trim();
+  // slot2 is posted separately so the server can enforce the mandatory-read rule
+  // structurally, regardless of how bodyText was assembled.
+  const slot2 = String(formData.get("slot2") ?? "").trim();
   const markSent = formData.get("markSent") === "1";
   const coversFromRaw = String(formData.get("coversFrom") ?? "");
   const coversToRaw = String(formData.get("coversTo") ?? "");
 
   if (!clientId) return { error: "Client ID is required." };
   if (!bodyText) return { error: "Note body is required." };
-  // Server-side guard: slot 2 must be non-empty (same rule as incident compose).
-  if (bodyText.length < 10) return { error: "Note is too short." };
+  // Structural guard: slot 2 ("what it means for you") must be non-empty.
+  // The client enforces this too, but this is the authoritative server-side check.
+  if (!slot2) return { error: "Your read (slot 2) is required." };
 
   // Ownership check: client must belong to this account.
   const client = await prisma.client.findFirst({
